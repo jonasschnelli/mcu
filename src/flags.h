@@ -67,6 +67,7 @@
         CMD(hash)               \
         CMD(type)               \
         CMD(data)               \
+        CMD(checkkey)           \
         CMD(keypath)            \
         CMD(strength)           \
         CMD(salt)               \
@@ -74,6 +75,8 @@
         CMD(decrypt)            \
         CMD(encrypt)            \
         CMD(pubkey)             \
+        CMD(pubkeyhash)         \
+        CMD(status)             \
         CMD(eccsig)             \
         CMD(pin)                \
   /* placeholder don't move */  \
@@ -110,6 +113,7 @@ enum STATUS_FLAGS {
     STATUS_SUCCESS, STATUS_ERROR, STATUS_ERROR_MEM,
     STATUS_VERIFY_ECHO, STATUS_VERIFY_SAME, STATUS_VERIFY_DIFFERENT, STATUS_VERIFY_NEXT,
     STATUS_TOUCHED, STATUS_NOT_TOUCHED,
+    STATUS_KEY_PRESENT, STATUS_KEY_ABSENT,
     STATUS_RESET,
     STATUS_ACCESS_INITIALIZE, STATUS_ACCESS_ITERATE,
     STATUS_MEM_ERASED, STATUS_MEM_NOT_ERASED,
@@ -135,7 +139,8 @@ enum STATUS_FLAGS {
 #define FLAG_ERR_BIP32_MISSING      "BIP32 mnemonic not present."
 #define FLAG_ERR_DECRYPT            "Could not decrypt."
 #define FLAG_ERR_MNEMO_CHECK        "Invalid mnemonic."
-#define FLAG_ERR_SIGN_LEN           "Incorrect data length. A 32-byte hexadecimal value (64 characters) is expected."
+#define FLAG_ERR_PKH_LEN            "Incorrect pubkeyhash length. A 20-byte hexadecimal value (40 characters) is expected."
+#define FLAG_ERR_SIGN_LEN           "Incorrect hash length. A 32-byte hexadecimal value (64 characters) is expected."
 #define FLAG_ERR_DESERIALIZE        "Could not deserialize outputs or wrong change keypath."
 #define FLAG_ERR_KEY_GEN            "Could not generate key."
 #define FLAG_ERR_SIGN               "Could not sign."

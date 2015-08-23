@@ -56,10 +56,10 @@ const char *CMD_STR[] = { FOREACH_CMD(GENERATE_STRING) };
 const char *ATTR_STR[] = { FOREACH_ATTR(GENERATE_STRING) };
 
 static int REPORT_BUF_OVERFLOW = 0;
-__extension__ static char signature_array[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
-__extension__ static char previous_command[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
-__extension__ static char new_command[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
 __extension__ static char json_report[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
+__extension__ static char sign_array[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
+__extension__ static char new_command[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
+__extension__ static char previous_command[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
 
 
 // Must free() returned value (allocated inside base64() function)
@@ -213,6 +213,39 @@ void commander_fill_report(const char *attr, const char *val, int err)
 }
 
 
+static void commander_fill_checkkey(const char *pubkeyhash, int status)
+{
+    char report[40 + 7 + 31] = {0};
+    strcat(report, "{\"");
+    strcat(report, CMD_STR[CMD_pubkeyhash_]);
+    strcat(report, "\":\"");
+    strncat(report, pubkeyhash, 40);
+    strcat(report, "\", \"");
+    strcat(report, CMD_STR[CMD_status_]);
+    strcat(report, "\":\"");
+    if (status == STATUS_KEY_PRESENT) {
+        strcat(report, "present");
+    } else {
+        strcat(report, "absent");
+    }
+    strcat(report, "\"}");
+
+    size_t len = strlens(sign_array);
+    if (len == 0) {
+        strncat(sign_array, "[", 1);
+    } else {
+        sign_array[len - 1] = ','; // replace closing ']' with continuing ','
+    }
+    if (sizeof(sign_array) < (strlens(report) + len + 3)) {
+        commander_clear_report();
+        commander_fill_report("checkkey", FLAG_ERR_REPORT_BUFFER, STATUS_ERROR);
+        return;
+    } else {
+        strcat(sign_array, report);
+        strcat(sign_array, "]");
+        return;
+    }
+}
 
 int commander_fill_signature(const uint8_t *sig, const uint8_t *pubkey)
 {
@@ -227,19 +260,19 @@ int commander_fill_signature(const uint8_t *sig, const uint8_t *pubkey)
     strncat(report, utils_uint8_to_hex(pubkey, 33), 66);
     strcat(report, "\"}");
 
-    size_t len = strlens(signature_array);
+    size_t len = strlens(sign_array);
     if (len == 0) {
-        strncat(signature_array, "[", 1);
+        strncat(sign_array, "[", 1);
     } else {
-        signature_array[len - 1] = ','; // replace closing ']' with continuing ','
+        sign_array[len - 1] = ','; // replace closing ']' with continuing ','
     }
-    if (sizeof(signature_array) < (strlens(report) + len + 3)) {
+    if (sizeof(sign_array) < (strlens(report) + len + 3)) {
         commander_clear_report();
         commander_fill_report("sign", FLAG_ERR_REPORT_BUFFER, STATUS_ERROR);
         return STATUS_ERROR;
     } else {
-        strcat(signature_array, report);
-        strcat(signature_array, "]");
+        strcat(sign_array, report);
+        strcat(sign_array, "]");
         return STATUS_SUCCESS;
     }
 }
@@ -490,6 +523,9 @@ static void commander_process_seed(yajl_val json_node)
 
 static int commander_process_sign(yajl_val json_node)
 {
+    size_t i;
+    int ret;
+
     const char *data_path[] = { CMD_STR[CMD_sign_], CMD_STR[CMD_data_], NULL };
     yajl_val data = yajl_tree_get(json_node, data_path, yajl_t_array);
 
@@ -498,10 +534,7 @@ static int commander_process_sign(yajl_val json_node)
         return STATUS_ERROR;
     }
 
-    memset(signature_array, 0, sizeof(signature_array));
-
-    int ret;
-    size_t i;
+    memset(sign_array, 0, sizeof(sign_array));
     for (i = 0; i < data->u.array.len; i++) {
         const char *keypath_path[] = { CMD_STR[CMD_keypath_], NULL };
         const char *hash_path[] = { CMD_STR[CMD_hash_], NULL };
@@ -520,8 +553,7 @@ static int commander_process_sign(yajl_val json_node)
             return ret;
         };
     }
-
-    commander_fill_report("sign", signature_array, STATUS_SUCCESS);
+    commander_fill_report("sign", sign_array, STATUS_SUCCESS);
     return ret;
 }
 
@@ -852,7 +884,7 @@ int commander_test_static_functions(void)
     commander_fill_report_len("testing", val, STATUS_SUCCESS,
                               COMMANDER_REPORT_SIZE - sizeof(sig) - sizeof(pubkey) - strlens(FLAG_ERR_REPORT_BUFFER));
     commander_fill_signature(sig, pubkey);
-    commander_fill_report("sign", signature_array, STATUS_SUCCESS);
+    commander_fill_report("sign", sign_array, STATUS_SUCCESS);
     if (!strstr(json_report, FLAG_ERR_REPORT_BUFFER)) {
         goto err;
     }
@@ -867,7 +899,7 @@ err:
 //  Handle API input (preprocessing) //
 //
 
-static int commander_echo_command(void)
+static int commander_echo_command(yajl_val json_node)
 {
     if (!memcmp(previous_command, new_command, COMMANDER_REPORT_SIZE)) {
         return STATUS_VERIFY_SAME;
@@ -878,6 +910,38 @@ static int commander_echo_command(void)
 
     commander_clear_report();
     snprintf(json_report, COMMANDER_REPORT_SIZE, "%s", new_command);
+
+    const char *check_path[] = { CMD_STR[CMD_sign_], CMD_STR[CMD_checkkey_], NULL };
+    yajl_val check = yajl_tree_get(json_node, check_path, yajl_t_array);
+
+    if (check) {
+        size_t i;
+        int ret;
+        memset(sign_array, 0, sizeof(sign_array));
+        for (i = 0; i < check->u.array.len; i++) {
+            const char *keypath_path[] = { CMD_STR[CMD_keypath_], NULL };
+            const char *pubkeyhash_path[] = { CMD_STR[CMD_pubkeyhash_], NULL };
+
+            yajl_val obj = check->u.array.values[i];
+            const char *keypath = YAJL_GET_STRING(yajl_tree_get(obj, keypath_path, yajl_t_string));
+            const char *pubkeyhash = YAJL_GET_STRING(yajl_tree_get(obj, pubkeyhash_path,
+                                     yajl_t_string));
+
+            if (!pubkeyhash || !keypath) {
+                commander_clear_report();
+                commander_fill_report("checkkey", FLAG_ERR_INVALID_CMD, STATUS_ERROR);
+                return STATUS_ERROR;
+            }
+
+            ret = wallet_check_pubkey(pubkeyhash, keypath, strlens(keypath));
+            if (ret == STATUS_ERROR) {
+                return STATUS_ERROR;
+            }
+            commander_fill_checkkey(pubkeyhash, ret);
+        }
+        commander_fill_report("checkkey", sign_array, STATUS_SUCCESS);
+    }
+
 
     if (!memory_read_unlocked()) {
         // Create one-time PIN
@@ -914,11 +978,11 @@ static int commander_echo_command(void)
 }
 
 
-static int commander_touch_button(int found_cmd)
+static int commander_touch_button(int found_cmd, yajl_val json_node)
 {
     if (found_cmd == CMD_sign_) {
         int c;
-        c = commander_echo_command();
+        c = commander_echo_command(json_node);
         if (c == STATUS_VERIFY_SAME) {
             int t;
             t = touch_button_press(1);
@@ -981,7 +1045,7 @@ static void commander_parse(char *command)
         commander_fill_report("input", FLAG_ERR_MULTIPLE_CMD, STATUS_ERROR);
     } else {
         memory_access_err_count(STATUS_ACCESS_INITIALIZE);
-        t = commander_touch_button(found_cmd);
+        t = commander_touch_button(found_cmd, json_node);
 
 
         if (t == STATUS_VERIFY_ECHO) {

@@ -259,6 +259,53 @@ void wallet_report_xpub(const char *keypath, int keypath_len, char *xpub)
 }
 
 
+int wallet_check_pubkey(const char *pubkeyhash, const char *keypath, int keypath_len)
+{
+    uint8_t *priv_key_master = memory_master(NULL);
+    uint8_t *chain_code = memory_chaincode(NULL);
+    uint8_t pub_key[33];
+    HDNode node;
+
+    if (strlens(pubkeyhash) != (20 * 2)) {
+        commander_clear_report();
+        commander_fill_report("checkkey", FLAG_ERR_PKH_LEN, STATUS_ERROR);
+        goto err;
+    }
+
+    if (!memcmp(priv_key_master, MEM_PAGE_ERASE, 32) ||
+            !memcmp(chain_code, MEM_PAGE_ERASE, 32)) {
+        commander_clear_report();
+        commander_fill_report("checkkey", FLAG_ERR_BIP32_MISSING, STATUS_ERROR);
+        goto err;
+    }
+
+    if (wallet_generate_key(&node, keypath, keypath_len, priv_key_master,
+                            chain_code) != STATUS_SUCCESS) {
+        commander_clear_report();
+        commander_fill_report("checkkey", FLAG_ERR_KEY_GEN, STATUS_ERROR);
+        goto err;
+    }
+
+    uECC_get_public_key33(node.private_key, pub_key);
+
+    uint8_t pub_key_hash[21];
+    wallet_get_address_raw(pub_key, 0, pub_key_hash);
+
+    memset(&node, 0, sizeof(HDNode));
+    clear_static_variables();
+    if (memcmp(pubkeyhash, utils_uint8_to_hex(pub_key_hash + 1, 20), 40)) {
+        return STATUS_KEY_ABSENT;
+    } else {
+        return STATUS_KEY_PRESENT;
+    }
+
+err:
+    memset(&node, 0, sizeof(HDNode));
+    clear_static_variables();
+    return STATUS_ERROR;
+}
+
+
 int wallet_sign(const char *message, int msg_len, const char *keypath, int keypath_len)
 {
     uint8_t data[32];
