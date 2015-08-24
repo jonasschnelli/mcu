@@ -1102,6 +1102,14 @@ static void test_commander_static_functions(void)
     u_assert_int_eq(commander_test_static_functions(), 0);
 }
 
+static void test_checkkey(void)
+{
+	const char mnemo[] = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+	int suc = wallet_master_from_mnemonic((char *)&mnemo, strlen(mnemo), NULL, 0);
+	u_assert_int_eq(suc, STATUS_SUCCESS);
+	suc = wallet_check_pubkey("e1b311d4dc2ef8fc4eb7c18f6f14de56a2ab7855", "m/0'/1'", 7);
+	u_assert_int_eq(suc, STATUS_KEY_PRESENT);
+}
 
 int main(void)
 {
@@ -1120,6 +1128,9 @@ int main(void)
     u_run_test(test_mnemonic);
     u_run_test(test_mnemonic_check);
     u_run_test(test_commander_static_functions);
+	
+	
+	u_run_test(test_checkkey);
 
 
     if (!U_TESTS_FAIL) {

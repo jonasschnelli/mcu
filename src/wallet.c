@@ -289,8 +289,12 @@ int wallet_check_pubkey(const char *pubkeyhash, const char *keypath, int keypath
     uECC_get_public_key33(node.private_key, pub_key);
 
     uint8_t pub_key_hash[21];
+	char address[36];
+	char pHex[67];
     wallet_get_address_raw(pub_key, 0, pub_key_hash);
+	wallet_get_address(pub_key, 0, address, sizeof(address));
 
+	memcpy(pHex, utils_uint8_to_hex(pub_key, 66), 66);
     memset(&node, 0, sizeof(HDNode));
     clear_static_variables();
     if (memcmp(pubkeyhash, utils_uint8_to_hex(pub_key_hash + 1, 20), 40)) {
