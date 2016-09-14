@@ -29,13 +29,20 @@
 #define _CONF_USB_H_
 
 
+// Device definition 
+#if 1
+#define  USB_DEVICE_VENDOR_ID             0x03EB
+#define  USB_DEVICE_PRODUCT_ID            0x2402
+#else
+#define  USB_DEVICE_VENDOR_ID             0x1FC9
+#define  USB_DEVICE_PRODUCT_ID            0x007F
+#endif
+
+#ifndef TESTING
 #include "compiler.h"
 #include "../../version.h"
 
 
-// Device definition 
-#define  USB_DEVICE_VENDOR_ID             0x03EB
-#define  USB_DEVICE_PRODUCT_ID            0x2402
 #define  USB_DEVICE_MAJOR_VERSION         1
 #define  USB_DEVICE_MINOR_VERSION         0
 #define  USB_DEVICE_POWER                 100// Consumption (mA)
@@ -90,6 +97,7 @@ extern char usb_serial_number[];
 // Keep these includes at the end of the file
 #include "udi_hid_generic_conf.h"
 #include "../../usb.h"
+#endif
 
 
 #endif // _CONF_USB_H_
