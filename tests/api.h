@@ -96,6 +96,28 @@ static void api_hid_send_encrypt(const char *cmd, uint16_t len, PASSWORD_ID id)
 #endif
 
 
+static uint16_t api_ser_cmd(const char *command)
+{
+    int id;
+    for (id = 0; id < CMD_NUM; id++) {
+        if (strcmp(cmd_str(id), command) == 0) {
+            return cmd_instr(id);
+        }
+    }
+    return 0;
+}
+
+static uint16_t api_ser_attr(const char *attr)
+{
+    int id;
+    for (id = 0; id < ATTR_NUM; id++) {
+        if (strcmp(attr_str(id), attr) == 0) {
+            return attr_instr(id);
+        }
+    }
+    return 0;
+}
+
 static uint16_t api_serialize_json(const char *command, char *buffer)
 {
     yajl_val json_node = yajl_tree_parse(command, NULL, 0);
@@ -105,7 +127,7 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
     uint16_t b_len = 0, ser_cmd;
 
     // Parent command
-    ser_cmd = flag_hash_16(cmd_parent);
+    ser_cmd = api_ser_cmd(cmd_parent);
     buffer[b_len++] = (ser_cmd & 0xFF00) >> 8;
     buffer[b_len++] = (ser_cmd & 0x00FF);
 
@@ -115,7 +137,7 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
 
         if (strlens(cmd_val)) {
             // Add child command key
-            ser_cmd = flag_hash_16(cmd_str(CMD_value));
+            ser_cmd = cmd_instr(CMD_value);
             buffer[b_len++] = (ser_cmd & 0xFF00) >> 8;
             buffer[b_len++] = (ser_cmd & 0x00FF);
             // Child command value
@@ -131,7 +153,7 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
             yajl_val arg_val = args->u.object.values[i];
 
             // Add child command key
-            ser_cmd = flag_hash_16(arg_key);
+            ser_cmd = api_ser_cmd(arg_key);
             buffer[b_len++] = (ser_cmd & 0xFF00) >> 8;
             buffer[b_len++] = (ser_cmd & 0x00FF);
 

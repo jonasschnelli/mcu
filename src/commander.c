@@ -292,7 +292,7 @@ static int commander_get_command(const char *command)
     int id;
     uint16_t cmd = (command[0] << 8) + command[1];
     for (id = 0; id < CMD_NUM; id++) {
-        if (cmd == flag_hash_16(cmd_str(id))) {
+        if (cmd == cmd_instr(id)) {
             return id;
         }
     }
@@ -306,7 +306,7 @@ static const char *commander_get_attribute(const char *command, int cmd)
     do {
         attr_hash = ((uint8_t)command[c] << 8) + (uint8_t)command[c + 1];
         attr_len = ((uint8_t)command[c + 2] << 8) + (uint8_t)command[c + 3];
-        if (flag_hash_16(cmd_str(cmd)) == attr_hash) {
+        if (cmd_instr(cmd) == attr_hash) {
             return command + c + 4;
         }
         c += sizeof(attr_hash) + sizeof(attr_len) + attr_len;
@@ -630,7 +630,7 @@ static int commander_process_sign(const char *command)
         char hash[64 + 1];
         char keypath[128];
 
-        if (arr_len < sizeof(hash) + sizeof(keypath) || arr_len > COMMANDER_ARRAY_MAX) {
+        if (arr_len < sizeof(hash) + 1 || arr_len > COMMANDER_ARRAY_MAX) {
             commander_clear_report();
             commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
             memset(json_array, 0, COMMANDER_ARRAY_MAX);
@@ -1298,7 +1298,7 @@ static int commander_echo_command(const char *command)
             char hash[64 + 1];
             char keypath[128];
 
-            if (arr_len < sizeof(hash) + sizeof(keypath) || arr_len > COMMANDER_ARRAY_MAX) {
+            if (arr_len < sizeof(hash) + 1 || arr_len > COMMANDER_ARRAY_MAX) {
                 commander_clear_report();
                 commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
                 memset(json_array, 0, COMMANDER_ARRAY_MAX);
