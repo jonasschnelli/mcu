@@ -177,14 +177,16 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
                     const char *hash_path[] = { cmd_str(CMD_hash), NULL };
                     const char *keypath = YAJL_GET_STRING(yajl_tree_get(obj, keypath_path, yajl_t_string));
                     const char *hash = YAJL_GET_STRING(yajl_tree_get(obj, hash_path, yajl_t_string));
-
+                    uint8_t hash_d[32];
                     if (hash && keypath) {
-                        uint16_t len = strlens(hash) + 1 + strlens(keypath) + 1;// add 1s for null
+                        uint16_t len = sizeof(hash_d) + strlens(keypath) + 1;// add 1s for null
                         array_buf[ab_len++] = (len & 0xFF00) >> 8;
                         array_buf[ab_len++] = len & 0x00FF;
 
-                        memcpy(array_buf + ab_len, hash, strlens(hash) + 1);
-                        ab_len += strlens(hash) + 1;
+                        memset(hash_d, 0, sizeof(hash_d));
+                        memcpy(hash_d, utils_hex_to_uint8(hash), sizeof(hash_d));
+                        memcpy(array_buf + ab_len, hash_d, sizeof(hash_d));
+                        ab_len += sizeof(hash_d);
 
                         memcpy(array_buf + ab_len, keypath, strlens(keypath) + 1);
                         ab_len += strlens(keypath) + 1;

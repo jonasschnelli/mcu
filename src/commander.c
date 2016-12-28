@@ -627,7 +627,7 @@ static int commander_process_sign(const char *command)
 
     uint16_t arr_len, c = 0;
     while ((arr_len = (data[c] << 8) + data[c + 1]) && c < COMMANDER_ARRAY_MAX) {
-        char hash[64 + 1];
+        uint8_t hash[32];
         char keypath[128];
 
         if (arr_len < sizeof(hash) + 1 || arr_len > COMMANDER_ARRAY_MAX) {
@@ -642,7 +642,7 @@ static int commander_process_sign(const char *command)
         memcpy(hash, data + c + 2, sizeof(hash));
         memcpy(keypath, data + c + 2 + sizeof(hash), arr_len - sizeof(hash));
 
-        if (!strlens(hash) || !strlens(keypath)) {
+        if (!strlens(keypath)) {
             commander_clear_report();
             commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
             memset(json_array, 0, COMMANDER_ARRAY_MAX);
@@ -1295,7 +1295,7 @@ static int commander_echo_command(const char *command)
         memset(json_array, 0, COMMANDER_ARRAY_MAX);
         uint16_t arr_len, c = 0;
         while ((arr_len = (data[c] << 8) + data[c + 1]) && c < COMMANDER_ARRAY_MAX) {
-            char hash[64 + 1];
+            uint8_t hash[32];
             char keypath[128];
 
             if (arr_len < sizeof(hash) + 1 || arr_len > COMMANDER_ARRAY_MAX) {
@@ -1310,7 +1310,7 @@ static int commander_echo_command(const char *command)
             memcpy(hash, data + c + 2, sizeof(hash));
             memcpy(keypath, data + c + 2 + sizeof(hash), arr_len - sizeof(hash));
 
-            if (!strlens(hash) || !strlens(keypath)) {
+            if (!strlens(keypath)) {
                 commander_clear_report();
                 commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
                 memset(json_array, 0, COMMANDER_ARRAY_MAX);
@@ -1318,7 +1318,10 @@ static int commander_echo_command(const char *command)
             }
 
             const char *key[] = {cmd_str(CMD_hash), cmd_str(CMD_keypath), 0};
-            const char *value[] = {hash, keypath, 0};
+            char hash_str[64 + 1];
+            memset(hash_str, 0, sizeof(hash_str));
+            memcpy(hash_str, utils_uint8_to_hex(hash, sizeof(hash)), sizeof(hash)*2);
+            const char *value[] = {hash_str, keypath, 0};
             int t[] = {DBB_JSON_STRING, DBB_JSON_STRING, DBB_JSON_NONE};
             commander_fill_json_array(key, value, t, CMD_data);
 
