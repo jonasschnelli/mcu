@@ -25,15 +25,23 @@
 */
 
 
+#include <string.h>
+#include <stdint.h>
 #include "flags.h"
 
 
-#define X(a) #a,
-const char *const CMD_STR[] = { CMD_TABLE };
+struct dbb_str_instr
+{
+    const char *const str; //the command/attribute string
+    uint16_t ins; //instruction, limited to uint16, DBB offers up to 256*256 commands.
+};
+
+#define X(a, b) {#a,b},
+const struct dbb_str_instr CMD_ENUM_TBL[] = { CMD_TABLE };
 #undef X
 
-#define X(a) #a,
-const char *const ATTR_STR[] = { ATTR_TABLE };
+#define X(a, b) {#a,b},
+const struct dbb_str_instr ATTR_ENUM_TBL[] = { ATTR_TABLE };
 #undef X
 
 #define X(a, b, c) #b,
@@ -46,13 +54,18 @@ const char *const FLAG_MSG[] = { FLAG_TABLE };
 
 const char *cmd_str(int cmd)
 {
-    return CMD_STR[cmd];
+    return CMD_ENUM_TBL[cmd].str;
+}
+
+uint16_t cmd_instr(enum CMD_ENUM enum_index)
+{
+    return CMD_ENUM_TBL[enum_index].ins;
 }
 
 
 const char *attr_str(int attr)
 {
-    return ATTR_STR[attr];
+    return ATTR_ENUM_TBL[attr].str;
 }
 
 

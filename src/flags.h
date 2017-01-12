@@ -29,6 +29,9 @@
 #define _FLAGS_H_
 
 
+#include <stdint.h>
+
+
 // Flash: 256kB = 512 pages * 512B per page
 #ifndef IFLASH0_ADDR
 #define IFLASH0_ADDR                (0x00400000u)
@@ -47,7 +50,12 @@
 #define FLASH_BOOT_LOCK_BYTE        (FLASH_SIG_LEN - 1)
 
 
+#ifndef TESTING
+#include "conf_usb.h"
+#define COMMANDER_REPORT_SIZE       UDI_HID_REPORT_OUT_SIZE
+#else
 #define COMMANDER_REPORT_SIZE       4096
+#endif
 #define COMMANDER_SIG_LEN           219// sig + pubkey + json encoding
 #define COMMANDER_ARRAY_MAX         (COMMANDER_REPORT_SIZE - (COMMANDER_SIG_LEN / 2))
 #define COMMANDER_ARRAY_ELEMENT_MAX 1024
@@ -72,95 +80,99 @@
 #define CMD_TABLE \
 /* parent keys  */\
 /*  with touch  */\
-X(sign)           \
-X(seed)           \
-X(reset)          \
-X(password)       \
-X(bootloader)     \
-X(hidden_password)\
-X(REQUIRE_TOUCH)   /* placeholder - do not move */\
+X(NO_CMD, 0)          /* placeholder - keep first */\
+X(sign, 10)           \
+X(seed, 11)           \
+X(reset, 12)          \
+X(password, 13)       \
+X(bootloader, 14)     \
+X(hidden_password, 15)\
+X(REQUIRE_TOUCH, 0)   /* placeholder - do not move */\
 /* parent keys  */\
 /*  w/o touch   */\
-X(verifypass)     \
-X(led)            \
-X(xpub)           \
-X(name)           \
-X(ecdh)           \
-X(device)         \
-X(random)         \
-X(backup)         \
-X(aes256cbc)      \
-X(ping)           \
+X(verifypass, 16)     \
+X(led, 17)            \
+X(xpub, 18)           \
+X(name, 19)           \
+X(ecdh, 20)           \
+X(device, 21)         \
+X(random, 22)         \
+X(backup, 23)         \
+X(aes256cbc, 24)      \
+X(ping, 25)           \
 /*  child keys  */\
-X(source)         \
-X(entropy)        \
-X(raw)            \
-X(type)           \
-X(hash)           \
-X(data)           \
-X(meta)           \
-X(pubkey)         \
-X(checkpub)       \
-X(filename)       \
-X(keypath)        \
-X(present)        \
-X(decrypt)        \
-X(encrypt)        \
-X(script)         \
-X(value)          \
-X(erase)          \
-X(check)          \
-X(key)            \
-X(sig)            \
-X(pin)            \
+X(source, 26)         \
+X(entropy, 27)        \
+X(raw, 28)            \
+X(type, 29)           \
+X(hash, 30)           \
+X(data, 31)           \
+X(meta, 32)           \
+X(pubkey, 33)         \
+X(checkpub, 34)       \
+X(filename, 35)       \
+X(keypath, 36)        \
+X(present, 37)        \
+X(decrypt, 38)        \
+X(encrypt, 39)        \
+X(script, 40)         \
+X(value, 41)          \
+X(erase, 42)          \
+X(check, 43)          \
+X(key, 44)            \
+X(sig, 45)            \
+X(pin, 46)            \
+X(valuearray, 150)          \
+X(hashkeypatharray, 151)          \
+X(pubkeykeypatharray, 152)          \
 /*  reply keys  */\
-X(ciphertext)     \
-X(echo)           \
-X(TFA)            \
-X(sham)           \
-X(input)          \
-X(ataes)          \
-X(touchbutton)    \
-X(warning)        \
-X(NUM)             /* keep last */
+X(ciphertext, 47)     \
+X(echo, 48)           \
+X(TFA, 49)            \
+X(sham, 50)           \
+X(input, 51)          \
+X(ataes, 52)          \
+X(touchbutton, 53)    \
+X(warning, 54)        \
+X(NUM, 0)             /* keep last */
 
 
 // Attributes
 #define ATTR_TABLE \
-X(success)        \
-X(error)          \
-X(accept)         \
-X(aborted)        \
-X(meta)           \
-X(list)           \
-X(sdcard)         \
-X(lock)           \
-X(bootlock)       \
-X(unlock)         \
-X(decrypt)        \
-X(encrypt)        \
-X(verify)         \
-X(true)           \
-X(false)          \
-X(erase)          \
-X(abort)          \
-X(blink)          \
-X(pseudo)         \
-X(create)         \
-X(backup)         \
-X(export)         \
-X(xpub)           \
-X(id)             \
-X(name)           \
-X(info)           \
-X(seeded)         \
-X(serial)         \
-X(version)        \
-X(password)       \
-X(TFA)            \
-X(__ERASE__)      \
-X(__FORCE__)      \
-X(NUM)             /* keep last */
+X(success, 10)        \
+X(error, 11)          \
+X(accept, 12)         \
+X(aborted, 13)        \
+X(meta, 14)           \
+X(list, 15)           \
+X(sdcard, 16)         \
+X(lock, 17)           \
+X(bootlock, 18)       \
+X(unlock, 19)         \
+X(decrypt, 20)        \
+X(encrypt, 21)        \
+X(verify, 22)         \
+X(true, 23)           \
+X(false, 24)          \
+X(erase, 25)          \
+X(abort, 26)          \
+X(blink, 27)          \
+X(pseudo, 28)         \
+X(create, 29)         \
+X(backup, 30)         \
+X(export, 31)         \
+X(xpub, 32)           \
+X(id, 33)             \
+X(name, 34)           \
+X(info, 35)           \
+X(seeded, 36)         \
+X(serial, 37)         \
+X(version, 38)        \
+X(password, 39)       \
+X(TFA, 40)            \
+X(__ERASE__, 41)      \
+X(__FORCE__, 42)      \
+X(NUM, 0)             /* keep last */
 
 
 // Status and error flags
@@ -197,11 +209,11 @@ X(ERR_IO_NO_PASSWORD,  101, "Please set a password.")\
 X(ERR_IO_PASSWORD_LEN, 102, "The password length must be at least " STRINGIFY(PASSWORD_LEN_MIN) " characters.")\
 X(ERR_IO_NO_INPUT,     103, "No input received.")\
 X(ERR_IO_INVALID_CMD,  104, "Invalid command.")\
-X(ERR_IO_MULT_CMD,     105, "Only one command allowed at a time.")\
+X(ERR_IO_MULT_CMD,     105, "-deprecated-")\
 X(ERR_IO_DATA_LEN,     106, "Data must be less than " STRINGIFY(AES_DATA_LEN_MAX)" characters.")\
 X(ERR_IO_REPORT_BUF,   107, "Output buffer overflow.")\
 X(ERR_IO_DECRYPT,      108, "Could not decrypt.")\
-X(ERR_IO_JSON_PARSE,   109, "JSON parse error.")\
+X(ERR_IO_JSON_PARSE,   109, "-deprecated-")\
 X(ERR_IO_RESET,        110, "Too many failed access attempts. Device reset.")\
 X(ERR_IO_LOCKED,       111, "Device locked. Erase device to access this command.")\
 X(ERR_IO_PW_COLLIDE,   112, "Device password matches reset password. Disabling reset password.")\
@@ -215,7 +227,7 @@ X(ERR_KEY_ECDH,        252, "Could not generate ECDH secret.")\
 X(ERR_KEY_ECDH_LEN,    253, "Incorrect serialized pubkey length. A 33-byte hexadecimal value (66 characters) is expected.")\
 X(ERR_SIGN_PUBKEY_LEN, 300, "Incorrect pubkey length. A 33-byte hexadecimal value (66 characters) is expected.")\
 X(ERR_SIGN_HASH_LEN,   301, "Incorrect hash length. A 32-byte hexadecimal value (64 characters) is expected.")\
-X(ERR_SIGN_DESERIAL,   302, "Could not deserialize outputs or wrong change keypath.")\
+X(ERR_SIGN_DESERIAL,   302, "Could not deserialize pubkeys, hashes or keypaths.")\
 X(ERR_SIGN_ECCLIB,     303, "Could not sign.")\
 X(ERR_SIGN_TFA_PIN,    304, "Incorrect TFA pin.")\
 X(ERR_SD_CARD,         400, "Please insert SD card.")\
@@ -239,15 +251,15 @@ X(ERR_TOUCH_TIMEOUT,   601, "Touchbutton timed out.")\
 X(WARN_RESET,          900, "attempts remain before the device is reset.")\
 X(WARN_NO_MCU,         901, "Ignored for non-embedded testing.")\
 X(WARN_SD_NUM_FILES,   902, "Too many backup files to read. The list is truncated.")\
-X(WARN_RESET_TOUCH,    903, "attempts remain before the device is reset. The next login requires holding the touch button.")\
+X(WARN_RESET_TOUCH,   903, "attempts remain before the device is reset. The next login requires holding the touch button.")\
 X(FLAG_NUM,              0, 0)/* keep last */
 
 
-#define X(a) CMD_ ## a,
+#define X(a, b) CMD_ ## a,
 enum CMD_ENUM { CMD_TABLE };
 #undef X
 
-#define X(a) ATTR_ ## a,
+#define X(a, b) ATTR_ ## a,
 enum CMD_ATTR_ENUM { ATTR_TABLE };
 #undef X
 
@@ -257,6 +269,7 @@ enum FLAG_ENUM { FLAG_TABLE };
 
 
 const char *cmd_str(int cmd);
+uint16_t cmd_instr(enum CMD_ENUM enum_index);
 const char *attr_str(int attr);
 const char *flag_code(int flag);
 const char *flag_msg(int flag);

@@ -260,16 +260,10 @@ void wallet_report_id(char *id)
 }
 
 
-int wallet_check_pubkey(const char *pubkey, const char *keypath)
+int wallet_check_pubkey(uint8_t *pubkey_in, const char *keypath)
 {
-    uint8_t pub_key[33];
+    uint8_t pubkey_derive[33];
     HDNode node;
-
-    if (strlens(pubkey) != 66) {
-        commander_clear_report();
-        commander_fill_report(cmd_str(CMD_checkpub), NULL, DBB_ERR_SIGN_PUBKEY_LEN);
-        goto err;
-    }
 
     if (wallet_seeded() != DBB_OK) {
         commander_clear_report();
@@ -284,10 +278,10 @@ int wallet_check_pubkey(const char *pubkey, const char *keypath)
         goto err;
     }
 
-    ecc_get_public_key33(node.private_key, pub_key);
+    ecc_get_public_key33(node.private_key, pubkey_derive);
 
     utils_zero(&node, sizeof(HDNode));
-    if (strncmp(pubkey, utils_uint8_to_hex(pub_key, 33), 66)) {
+    if (memcmp(pubkey_in, pubkey_derive, sizeof(pubkey_derive))) {
         return DBB_KEY_ABSENT;
     } else {
         return DBB_KEY_PRESENT;
@@ -299,18 +293,11 @@ err:
 }
 
 
-int wallet_sign(const char *message, const char *keypath)
+int wallet_sign(const uint8_t *data, const char *keypath)
 {
-    uint8_t data[32];
     uint8_t sig[64];
     uint8_t pub_key[33];
     HDNode node;
-
-    if (strlens(message) != (32 * 2)) {
-        commander_clear_report();
-        commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_HASH_LEN);
-        goto err;
-    }
 
     if (wallet_seeded() != DBB_OK) {
         commander_clear_report();
@@ -324,8 +311,6 @@ int wallet_sign(const char *message, const char *keypath)
         commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_KEY_CHILD);
         goto err;
     }
-
-    memcpy(data, utils_hex_to_uint8(message), 32);
 
     if (ecc_sign_digest(node.private_key, data, sig)) {
         commander_clear_report();
