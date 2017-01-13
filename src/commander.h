@@ -47,7 +47,7 @@ int commander_fill_json_array(const char **key, const char **value, int *type,
                               int cmd);
 void commander_force_reset(void);
 void commander_create_verifypass(void);
-char *commander(const char *cmd, int cmd_len);
+char *commander(const uint8_t *cmd, int cmd_len);
 
 
 #endif

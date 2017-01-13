@@ -288,7 +288,7 @@ int commander_fill_signature_array(const uint8_t sig[64], const uint8_t pubkey[3
 //  Command processing  //
 //
 
-static int commander_get_command(const char *command)
+static int commander_get_command(const uint8_t *command)
 {
     int id;
     uint16_t cmd = (command[0] << 8) + command[1];
@@ -300,12 +300,10 @@ static int commander_get_command(const char *command)
     return 0;
 }
 
-
-static const char *commander_get_attribute(const char *command, int cmd_len, int cmd)
+static const uint8_t *commander_get_attribute(const uint8_t *command, int cmd_len, int cmd, int *len_out)
 {
     uint16_t attr_instr = 0, attr_len = 0, c = 2;
     unsigned int i=0, j=0;
-
     /* loop until we have reachted the end */
     while (c + 4 < cmd_len) {
         attr_instr = ((uint8_t)command[c] << 8) + (uint8_t)command[c + 1];
@@ -315,6 +313,9 @@ static const char *commander_get_attribute(const char *command, int cmd_len, int
             return NULL;
         }
         if (cmd_instr(cmd) == attr_instr) {
+            /* probably a string attribute */
+            if (len_out)
+                *len_out = attr_len;
             return command + c + 4;
         }
         /* check if we parse an arguments array */
@@ -329,8 +330,11 @@ static const char *commander_get_attribute(const char *command, int cmd_len, int
                 sub_attr_len_or_instr = ((uint8_t)command[c + 2] << 8) + (uint8_t)command[c + 3];
                 /* be strict, only allow hashkeypatharray and pubkeykeypatharray as sub-arrays */
                 if (sub_attr_instr == cmd_instr(CMD_hashkeypatharray) || sub_attr_instr == cmd_instr(CMD_pubkeykeypatharray)) {
+                    const unsigned char *found_cmd = NULL;
+                    int len_start = 0;
                     if (cmd_instr(cmd) == sub_attr_instr) {
-                        return command + c + 2; //return buffer including array length
+                        found_cmd = command + c + 2;
+                        len_start = c + 2; //remember the length
                     }
                     c += sizeof(sub_attr_instr) + sizeof(sub_attr_len_or_instr);
                     /* hashkey_path string */
@@ -340,6 +344,12 @@ static const char *commander_get_attribute(const char *command, int cmd_len, int
                         }
                         uint16_t hashkeypathlen = ((uint8_t)command[c] << 8) + (uint8_t)command[c + 1];
                         c += hashkeypathlen + sizeof(hashkeypathlen);
+                    }
+                    if (found_cmd)
+                    {
+                        if (len_out)
+                            *len_out = c - len_start;
+                        return found_cmd;
                     }
                 }
                 else {
@@ -351,6 +361,8 @@ static const char *commander_get_attribute(const char *command, int cmd_len, int
                     uint16_t str_attr_len = ((uint8_t)command[c + 4] << 8) + (uint8_t)command[c + 5];
                     /* simple string */
                     if (cmd_instr(cmd) == sub_attr_instr) {
+                        if (len_out)
+                            *len_out = str_attr_len;
                         return command + c + 6;
                     }
                     c += sizeof(sub_attr_instr) + sizeof(sub_attr_len_or_instr) + sizeof(str_attr_len) + str_attr_len;
@@ -363,6 +375,19 @@ static const char *commander_get_attribute(const char *command, int cmd_len, int
     return NULL;
 }
 
+static const char *commander_get_str_attribute(const uint8_t *command, int cmd_len, int cmd)
+{
+    int len_out = 0;
+    const uint8_t *str_ptr = commander_get_attribute(command, cmd_len, cmd, &len_out);
+    if (!str_ptr ) {
+        return NULL;
+    }
+    // make sure it's null byte terminated
+    if (str_ptr[len_out-1] != 0) {
+        return NULL;
+    }
+    return (const char *)str_ptr;
+}
 
 void commander_force_reset(void)
 {
@@ -372,9 +397,9 @@ void commander_force_reset(void)
 }
 
 
-static void commander_process_reset(const char *command, int cmd_len)
+static void commander_process_reset(const uint8_t *command, int cmd_len)
 {
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (!strlens(value)) {
         commander_fill_report(cmd_str(CMD_reset), NULL, DBB_ERR_IO_INVALID_CMD);
         return;
@@ -391,9 +416,9 @@ static void commander_process_reset(const char *command, int cmd_len)
 }
 
 
-static void commander_process_name(const char *command, int cmd_len)
+static void commander_process_name(const uint8_t *command, int cmd_len)
 {
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     commander_fill_report(cmd_str(CMD_name), (char *)memory_name(value), DBB_OK);
 }
 
@@ -485,7 +510,7 @@ static int commander_process_backup_create(const char *key, const char *filename
 }
 
 
-static void commander_process_backup(const char *command, int cmd_len)
+static void commander_process_backup(const uint8_t *command, int cmd_len)
 {
     const char *filename, *key, *check, *erase, *value;
 
@@ -494,7 +519,7 @@ static void commander_process_backup(const char *command, int cmd_len)
         return;
     }
 
-    value = commander_get_attribute(command, cmd_len, CMD_value);
+    value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (value) {
         if (strcmp(value, attr_str(ATTR_list)) == 0) {
             sd_list(CMD_backup);
@@ -507,21 +532,21 @@ static void commander_process_backup(const char *command, int cmd_len)
         }
     }
 
-    erase = commander_get_attribute(command, cmd_len, CMD_erase);
+    erase = commander_get_str_attribute(command, cmd_len, CMD_erase);
     if (erase) {
         sd_erase(CMD_backup, erase);
         return;
     }
 
-    key = commander_get_attribute(command, cmd_len, CMD_key);
+    key = commander_get_str_attribute(command, cmd_len, CMD_key);
     if (key) {
-        check = commander_get_attribute(command, cmd_len, CMD_check);
+        check = commander_get_str_attribute(command, cmd_len, CMD_check);
         if (check) {
             commander_process_backup_check(key, check);
             return;
         }
 
-        filename = commander_get_attribute(command, cmd_len, CMD_filename);
+        filename = commander_get_str_attribute(command, cmd_len, CMD_filename);
         if (filename) {
             commander_process_backup_create(key, filename);
             return;
@@ -535,15 +560,15 @@ static void commander_process_backup(const char *command, int cmd_len)
 }
 
 
-static void commander_process_seed(const char *command, int cmd_len)
+static void commander_process_seed(const uint8_t *command, int cmd_len)
 {
     int ret;
     const char *key, *raw, *source, *entropy, *filename;
-    key = commander_get_attribute(command, cmd_len, CMD_key);
-    raw = commander_get_attribute(command, cmd_len, CMD_raw);
-    source = commander_get_attribute(command, cmd_len, CMD_source);
-    entropy = commander_get_attribute(command, cmd_len, CMD_entropy);
-    filename = commander_get_attribute(command, cmd_len, CMD_filename);
+    key = commander_get_str_attribute(command, cmd_len, CMD_key);
+    raw = commander_get_str_attribute(command, cmd_len, CMD_raw);
+    source = commander_get_str_attribute(command, cmd_len, CMD_source);
+    entropy = commander_get_str_attribute(command, cmd_len, CMD_entropy);
+    filename = commander_get_str_attribute(command, cmd_len, CMD_filename);
 
     if (wallet_is_locked()) {
         commander_fill_report(cmd_str(CMD_seed), NULL, DBB_ERR_IO_LOCKED);
@@ -661,16 +686,17 @@ static void commander_process_seed(const char *command, int cmd_len)
 }
 
 
-static int commander_process_sign(const char *command, int cmd_len)
+static int commander_process_sign(const uint8_t *command, int cmd_len)
 {
     int ret = DBB_ERROR, i = 0;
-    uint16_t arr_len, ele_len, c = 0;
+    uint16_t arr_len = 0, ele_len = 0, c = 0;
     uint8_t hash[32];
     char keypath[256];
 
-    const char *hashkeypath = commander_get_attribute(command, cmd_len, CMD_hashkeypatharray);
+    int hashkeypath_len;
+    const uint8_t *hashkeypath = commander_get_attribute(command, cmd_len, CMD_hashkeypatharray, &hashkeypath_len);
 
-    if (!hashkeypath || cmd_len < 4) {
+    if (!hashkeypath || hashkeypath_len < 2 || cmd_len < 4) {
         commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
         return DBB_ERROR;
     }
@@ -683,6 +709,10 @@ static int commander_process_sign(const char *command, int cmd_len)
         return DBB_ERROR;
     }
     for (i = 0; i < arr_len; i++) {
+        /* bounds check */
+        if (hashkeypath_len < c+2+(int)sizeof(hash)) {
+            goto sign_deser_error;
+        }
         ele_len = (hashkeypath[c + 2] << 8) + hashkeypath[c + 3];
         memset(hash, 0, sizeof(hash));
         memset(keypath, 0, sizeof(keypath));
@@ -690,10 +720,7 @@ static int commander_process_sign(const char *command, int cmd_len)
         memcpy(keypath, hashkeypath + c + 4 + sizeof(hash), MIN( sizeof(keypath), (ele_len - sizeof(hash)) ));
 
         if (!strlens(keypath) || (ele_len - sizeof(hash)) > sizeof(keypath) ) {
-            commander_clear_report();
-            commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
-            memset(json_array, 0, COMMANDER_ARRAY_MAX);
-            return DBB_ERROR;
+            goto sign_deser_error;
         }
 
         ret = wallet_sign(hash, keypath);
@@ -707,10 +734,16 @@ static int commander_process_sign(const char *command, int cmd_len)
     commander_fill_report(cmd_str(CMD_sign), json_array, DBB_JSON_ARRAY);
     memset(json_array, 0, COMMANDER_ARRAY_MAX);
     return ret;
+
+sign_deser_error:
+    commander_clear_report();
+    commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
+    memset(json_array, 0, COMMANDER_ARRAY_MAX);
+    return DBB_ERROR;
 }
 
 
-static void commander_process_random(const char *command, int cmd_len)
+static void commander_process_random(const uint8_t *command, int cmd_len)
 {
     int update_seed;
     uint8_t number[16];
@@ -719,7 +752,7 @@ static void commander_process_random(const char *command, int cmd_len)
     char *encoded_report;
     char echo_number[32 + 13 + 1];
 
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (!strlens(value)) {
         commander_fill_report(cmd_str(CMD_random), NULL, DBB_ERR_IO_INVALID_CMD);
         return;
@@ -811,14 +844,14 @@ static int commander_process_ecdh(int cmd, const uint8_t *pair_pubkey,
 }
 
 
-static void commander_process_verifypass(const char *command, int cmd_len)
+static void commander_process_verifypass(const uint8_t *command, int cmd_len)
 {
     uint8_t number[32] = {0};
     char *l, text[64 + 1];
     const char *value, *pair_pubkey;
 
-    value = commander_get_attribute(command, cmd_len, CMD_value);
-    pair_pubkey = commander_get_attribute(command, cmd_len, CMD_ecdh);
+    value = commander_get_str_attribute(command, cmd_len, CMD_value);
+    pair_pubkey = commander_get_str_attribute(command, cmd_len, CMD_ecdh);
 
     if (wallet_is_locked()) {
         commander_fill_report(cmd_str(CMD_verifypass), NULL, DBB_ERR_IO_LOCKED);
@@ -904,10 +937,10 @@ static void commander_process_verifypass(const char *command, int cmd_len)
 }
 
 
-static void commander_process_xpub(const char *command, int cmd_len)
+static void commander_process_xpub(const uint8_t *command, int cmd_len)
 {
     char xpub[112] = {0};
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (!strlens(value)) {
         commander_fill_report(cmd_str(CMD_xpub), NULL, DBB_ERR_IO_INVALID_CMD);
         return;
@@ -949,9 +982,9 @@ static uint8_t commander_bootloader_unlocked(void)
 }
 
 
-static void commander_process_device(const char *command, int cmd_len)
+static void commander_process_device(const uint8_t *command, int cmd_len)
 {
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (!strlens(value)) {
         commander_fill_report(cmd_str(CMD_device), NULL, DBB_ERR_IO_INVALID_CMD);
         return;
@@ -1042,15 +1075,15 @@ static void commander_process_device(const char *command, int cmd_len)
 }
 
 
-static void commander_process_aes256cbc(const char *command, int cmd_len)
+static void commander_process_aes256cbc(const uint8_t *command, int cmd_len)
 {
     const char *type, *data;
     char *crypt;
     int crypt_len;
     PASSWORD_ID id;
 
-    type = commander_get_attribute(command, cmd_len, CMD_type);
-    data = commander_get_attribute(command, cmd_len, CMD_data);
+    type = commander_get_str_attribute(command, cmd_len, CMD_type);
+    data = commander_get_str_attribute(command, cmd_len, CMD_data);
 
     if (!type || !data) {
         commander_fill_report(cmd_str(CMD_aes256cbc), NULL, DBB_ERR_IO_INVALID_CMD);
@@ -1123,9 +1156,9 @@ static void commander_process_aes256cbc(const char *command, int cmd_len)
 }
 
 
-static void commander_process_led(const char *command, int cmd_len)
+static void commander_process_led(const uint8_t *command, int cmd_len)
 {
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (!strlens(value)) {
         commander_fill_report(cmd_str(CMD_led), NULL, DBB_ERR_IO_INVALID_CMD);
         return;
@@ -1143,9 +1176,9 @@ static void commander_process_led(const char *command, int cmd_len)
 }
 
 
-static void commander_process_bootloader(const char *command, int cmd_len)
+static void commander_process_bootloader(const uint8_t *command, int cmd_len)
 {
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
     if (!strlens(value)) {
         commander_fill_report(cmd_str(CMD_bootloader), NULL, DBB_ERR_IO_INVALID_CMD);
         return;
@@ -1183,10 +1216,10 @@ err:
 }
 
 
-static void commander_process_password(const char *command, int cmd_len, PASSWORD_ID id)
+static void commander_process_password(const uint8_t *command, int cmd_len, PASSWORD_ID id)
 {
     int ret;
-    const char *value = commander_get_attribute(command, cmd_len, CMD_value);
+    const char *value = commander_get_str_attribute(command, cmd_len, CMD_value);
 
     if (wallet_is_locked() && id == PASSWORD_HIDDEN) {
         commander_fill_report(cmd_str(CMD_password), NULL, DBB_ERR_IO_LOCKED);
@@ -1215,7 +1248,7 @@ static void commander_process_password(const char *command, int cmd_len, PASSWOR
 }
 
 
-static int commander_process(int cmd, const char *command, int cmd_len)
+static int commander_process(int cmd, const uint8_t *command, int cmd_len)
 {
     switch (cmd) {
         case CMD_reset:
@@ -1308,9 +1341,9 @@ static int commander_tfa_append_pin(void)
 }
 
 
-static int commander_tfa_check_pin(const char *command, int cmd_len)
+static int commander_tfa_check_pin(const uint8_t *command, int cmd_len)
 {
-    const char *pin = commander_get_attribute(command, cmd_len, CMD_pin);
+    const char *pin = commander_get_str_attribute(command, cmd_len, CMD_pin);
 
     if (!strlens(pin)) {
         return DBB_ERROR;
@@ -1324,7 +1357,7 @@ static int commander_tfa_check_pin(const char *command, int cmd_len)
 }
 
 
-static int commander_echo_command(const char *command, int cmd_len)
+static int commander_echo_command(const uint8_t *command, int cmd_len)
 {
     uint16_t arr_len, ele_len, c = 0;
     int i=0, ret = -1;
@@ -1335,15 +1368,15 @@ static int commander_echo_command(const char *command, int cmd_len)
     if (!command || cmd_len <= 0)
         return DBB_ERROR;
 
-    const char *meta = commander_get_attribute(command, cmd_len, CMD_meta);
-    const char *hashkeypath = commander_get_attribute(command, cmd_len, CMD_hashkeypatharray);
-    const char *checkpubkey = commander_get_attribute(command, cmd_len, CMD_pubkeykeypatharray);
-
+    const char *meta = commander_get_str_attribute(command, cmd_len, CMD_meta);
+    int hashkeypath_len = 0, checkpubkey_len = 0;
+    const uint8_t *hashkeypath = commander_get_attribute(command, cmd_len, CMD_hashkeypatharray, &hashkeypath_len);
+    const uint8_t *checkpubkey = commander_get_attribute(command, cmd_len, CMD_pubkeykeypatharray, &checkpubkey_len);
     if (meta) {
         commander_fill_report(cmd_str(CMD_meta), meta, DBB_OK);
     }
 
-    if (!hashkeypath) {
+    if (!hashkeypath || hashkeypath_len < 2) {
         commander_clear_report();
         commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
         return DBB_ERROR;
@@ -1356,6 +1389,10 @@ static int commander_echo_command(const char *command, int cmd_len)
             return DBB_ERROR;
         }
         for (i = 0; i < arr_len; i++) {
+            /* bounds check */
+            if (hashkeypath_len < c+2+(int)sizeof(hash)) {
+                goto deser_error;
+            }
             ele_len = (hashkeypath[c + 2] << 8) + hashkeypath[c + 3];
             memset(hash, 0, sizeof(hash));
             memset(keypath, 0, sizeof(keypath));
@@ -1363,10 +1400,7 @@ static int commander_echo_command(const char *command, int cmd_len)
             memcpy(keypath, hashkeypath + c + 4 + sizeof(hash), MIN( sizeof(keypath), (ele_len - sizeof(hash)) ));
 
             if (!strlens(keypath) || (ele_len - sizeof(hash)) > sizeof(keypath) ) {
-                commander_clear_report();
-                commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
-                memset(json_array, 0, COMMANDER_ARRAY_MAX);
-                return DBB_ERROR;
+                goto deser_error;
             }
 
             const char *key[] = {cmd_str(CMD_hash), cmd_str(CMD_keypath), 0};
@@ -1381,7 +1415,7 @@ static int commander_echo_command(const char *command, int cmd_len)
         commander_fill_report(cmd_str(CMD_data), json_array, DBB_JSON_ARRAY);
     }
 
-    if (checkpubkey) {
+    if (checkpubkey && checkpubkey_len >= 2) {
         arr_len=0; ele_len=0; c = 0;
         memset(json_array, 0, COMMANDER_ARRAY_MAX);
         arr_len = (checkpubkey[c] << 8) + checkpubkey[c + 1];
@@ -1392,16 +1426,16 @@ static int commander_echo_command(const char *command, int cmd_len)
         }
         for (i = 0; i < arr_len; i++) {
             ele_len = (checkpubkey[c + 2] << 8) + checkpubkey[c + 3];
+            if (checkpubkey_len < c+(int)sizeof(pubkey)) {
+                goto deser_error;
+            }
             memset(pubkey, 0, sizeof(pubkey));
             memset(keypath, 0, sizeof(keypath));
             memcpy(pubkey, checkpubkey + c + 4, sizeof(pubkey));
             memcpy(keypath, checkpubkey + c + 4 + sizeof(pubkey), MIN( sizeof(keypath), (ele_len - sizeof(pubkey)) ));
 
             if (!strlens(keypath) || (ele_len - sizeof(pubkey)) > sizeof(keypath)) {
-                commander_clear_report();
-                commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
-                memset(json_array, 0, COMMANDER_ARRAY_MAX);
-                return DBB_ERROR;
+                goto deser_error;
             }
 
             ret = wallet_check_pubkey(pubkey, keypath);
@@ -1427,10 +1461,7 @@ static int commander_echo_command(const char *command, int cmd_len)
         }
         if (ret == -1) {
             /* report error in case of an empty checkpub array */
-            commander_clear_report();
-            commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
-            memset(json_array, 0, COMMANDER_ARRAY_MAX);
-            return DBB_ERROR;
+            goto deser_error;
         }
 
         commander_fill_report(cmd_str(CMD_checkpub), json_array, DBB_JSON_ARRAY);
@@ -1459,6 +1490,12 @@ static int commander_echo_command(const char *command, int cmd_len)
     free(encoded_report);
 
     return DBB_OK;
+
+deser_error:
+    commander_clear_report();
+    commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
+    memset(json_array, 0, COMMANDER_ARRAY_MAX);
+    return DBB_ERROR;
 }
 
 
@@ -1488,7 +1525,7 @@ static void commander_access_err(uint8_t err_msg, uint16_t err_count)
     commander_fill_report(cmd_str(CMD_input), msg, err_msg);
 }
 
-static void commander_parse(char *command, int cmd_len)
+static void commander_parse(const uint8_t *command, int cmd_len)
 {
     char *encoded_report;
     int status, found_cmd_instr_idx = 0xFF, encrypt_len;
@@ -1524,7 +1561,7 @@ static void commander_parse(char *command, int cmd_len)
             }
             status = touch_button_press(DBB_TOUCH_LONG_BLINK);
             if (status == DBB_TOUCHED) {
-                commander_process_sign(sign_command, sign_command_len);
+                commander_process_sign((const uint8_t*)sign_command, sign_command_len);
             } else {
                 commander_fill_report(cmd_str(CMD_sign), NULL, status);
             }
@@ -1570,17 +1607,17 @@ static void commander_parse(char *command, int cmd_len)
 }
 
 
-static char *commander_decrypt(const char *encrypted_command, int *command_len_out)
+static uint8_t *commander_decrypt(const uint8_t *encrypted_command, int enc_len, int *command_len_out)
 {
-    char *command;
+    uint8_t *command;
     int err = 0;
     uint16_t err_count = 0, err_iter = 0;
 
     wallet_set_hidden(0);
 
 
-    command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
-                                  strlens(encrypted_command),
+    command = (uint8_t *)aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
+                                  enc_len,
                                   command_len_out,
                                   PASSWORD_STAND);
 
@@ -1600,8 +1637,8 @@ static char *commander_decrypt(const char *encrypted_command, int *command_len_o
         }
 
         // Check if hidden wallet is requested
-        command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
-                                      strlens(encrypted_command),
+        command = (uint8_t *)aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
+                                      enc_len,
                                       command_len_out,
                                       PASSWORD_HIDDEN);
         if (*command_len_out) {
@@ -1628,7 +1665,7 @@ static char *commander_decrypt(const char *encrypted_command, int *command_len_o
 }
 
 
-static int commander_check_init(const char *encrypted_command, int enc_cmd_len)
+static int commander_check_init(const uint8_t *encrypted_command, int enc_cmd_len)
 {
     if (memory_read_access_err_count() >= COMMANDER_TOUCH_ATTEMPTS) {
          int status = touch_button_press(DBB_TOUCH_LONG);
@@ -1660,7 +1697,7 @@ static int commander_check_init(const char *encrypted_command, int enc_cmd_len)
     }
 
     if (cmd_id == CMD_password) {
-        const char *value = commander_get_attribute(encrypted_command, enc_cmd_len, CMD_value);
+        const char *value = commander_get_str_attribute(encrypted_command, enc_cmd_len, CMD_value);
         if (strlens(value)) {
             int ret = commander_process_aes_key(value, strlens(value), PASSWORD_STAND);
             if (ret == DBB_OK) {
@@ -1684,14 +1721,14 @@ static int commander_check_init(const char *encrypted_command, int enc_cmd_len)
 //
 //  Gateway to the MCU code //
 //
-char *commander(const char *command, int cmd_len)
+char *commander(const uint8_t *command, int cmd_len)
 {
     commander_clear_report();
     if (commander_check_init(command, cmd_len) == DBB_OK) {
-        int command_len = 0;
-        char *command_dec = commander_decrypt(command, &command_len);
-        if (command_dec && command_len >= 2) {
-            commander_parse(command_dec, command_len);
+        int cmd_dec_len = 0;
+        uint8_t *command_dec = commander_decrypt(command, cmd_len, &cmd_dec_len);
+        if (command_dec && cmd_dec_len >= 2) {
+            commander_parse(command_dec, cmd_dec_len);
             free(command_dec);
         }
     }

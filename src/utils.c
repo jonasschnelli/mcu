@@ -284,7 +284,7 @@ exit:
 }
 
 
-void utils_send_cmd(const char *command, uint16_t len, PASSWORD_ID enc_id)
+void utils_send_cmd(const uint8_t *command, uint16_t len, PASSWORD_ID enc_id)
 {
     if (enc_id == PASSWORD_NONE) {
         utils_decrypt_report(commander(command, len), enc_id);
@@ -293,11 +293,11 @@ void utils_send_cmd(const char *command, uint16_t len, PASSWORD_ID enc_id)
         char *enc = aes_cbc_b64_encrypt((const unsigned char *)command, len,
                                         &encrypt_len,
                                         enc_id);
-        char cmd[COMMANDER_REPORT_SIZE] = {0};
+        uint8_t cmd[COMMANDER_REPORT_SIZE] = {0};
         assert(encrypt_len < COMMANDER_REPORT_SIZE);
         memcpy(cmd, enc, encrypt_len);
         free(enc);
-        utils_decrypt_report(commander(cmd, len), enc_id);
+        utils_decrypt_report(commander(cmd, encrypt_len), enc_id);
     }
 }
 

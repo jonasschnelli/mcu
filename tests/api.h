@@ -239,22 +239,16 @@ static void api_hid_read(PASSWORD_ID id)
 }
 
 
-static void api_hid_send_len(const char *cmd, int cmdlen)
+static void api_hid_send_len(const uint8_t *cmd, int cmdlen)
 {
     api_hid_send_frames(HWW_CID, HWW_COMMAND, cmd, cmdlen);
 }
 
 
-static void api_hid_send(const char *cmd)
-{
-    api_hid_send_len(cmd, strlens(cmd));
-}
-
-
-static void api_hid_send_encrypt(const char *cmd, uint16_t len, PASSWORD_ID id)
+static void api_hid_send_encrypt(const uint8_t *cmd, uint16_t len, PASSWORD_ID id)
 {
     int enc_len;
-    char *enc = aes_cbc_b64_encrypt((const unsigned char *)cmd, len, &enc_len, id);
+    uint8_t *enc = (uint8_t*)aes_cbc_b64_encrypt((const unsigned char *)cmd, len, &enc_len, id);
     api_hid_send_len(enc, enc_len);
     free(enc);
 }
@@ -270,7 +264,7 @@ static uint16_t api_ser_cmd(const char *command)
     return 0;
 }
 
-static uint16_t api_serialize_json(const char *command, char *buffer)
+static uint16_t api_serialize_json(const char *command, uint8_t *buffer)
 {
     uint16_t b_len = 0, ser_cmd;
     yajl_val json_node = yajl_tree_parse(command, NULL, 0);
@@ -319,7 +313,7 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
         buffer[b_len++] = (ser_cmd & 0x00FF);
 
         uint16_t val_len_ary = args_len;
-        char *ary_size_ptr = buffer + b_len;
+        uint8_t *ary_size_ptr = buffer + b_len;
         buffer[b_len++] = (val_len_ary & 0xFF00) >> 8;
         buffer[b_len++] = (val_len_ary & 0x00FF);
 
@@ -368,7 +362,7 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
 
                     /* write subarray length, keep pointer to update length later */
                     uint16_t val_len_sub_ary = arg_val->u.array.len;
-                    char *subary_size_ptr = buffer + b_len;
+                    uint8_t *subary_size_ptr = buffer + b_len;
                     buffer[b_len++] = (val_len_sub_ary  & 0xFF00) >> 8;
                     buffer[b_len++] = (val_len_sub_ary  & 0x00FF);
 
@@ -417,7 +411,7 @@ static uint16_t api_serialize_json(const char *command, char *buffer)
 
                     /* write subarray length, keep pointer to update length later */
                     uint16_t val_len_sub_ary = arg_val->u.array.len;
-                    char *subary_size_ptr = buffer + b_len;
+                    uint8_t *subary_size_ptr = buffer + b_len;
                     buffer[b_len++] = (val_len_sub_ary  & 0xFF00) >> 8;
                     buffer[b_len++] = (val_len_sub_ary  & 0x00FF);
 
@@ -477,7 +471,7 @@ exit_and_free:
 static int api_send_cmd(const char *command, PASSWORD_ID id)
 {
     uint16_t len = 0;
-    char command_ser[COMMANDER_REPORT_SIZE];
+    uint8_t command_ser[COMMANDER_REPORT_SIZE];
     memset(command_ser, 0, COMMANDER_REPORT_SIZE);
 
     if (strlens(command)) {
