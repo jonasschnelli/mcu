@@ -432,8 +432,9 @@ static void u2f_device_cmd_cont(const USB_FRAME *f)
             ecc_set_curve(ECC_SECP256k1);
             reader->buf[MIN(reader->len,
                             sizeof(reader->buf) - 1)] = '\0';// NULL terminate// FIXME - needed?
-            char *report = commander(reader->buf, reader->len);
-            usb_reply_queue_load_msg(HWW_COMMAND, (const uint8_t *)report, strlens(report), cid);
+            int outlen = 0;
+            const uint8_t *report = commander(reader->buf, reader->len, &outlen);
+            usb_reply_queue_load_msg(HWW_COMMAND, report, outlen, cid);
             break;
         default:
             u2f_send_err_hid(cid, ERR_INVALID_CMD);

@@ -267,14 +267,14 @@ int wallet_check_pubkey(uint8_t *pubkey_in, const char *keypath)
 
     if (wallet_seeded() != DBB_OK) {
         commander_clear_report();
-        commander_fill_report(cmd_str(CMD_checkpub), NULL, DBB_ERR_KEY_MASTER);
+        commander_ser_set_err(CMD_checkpub, DBB_ERR_KEY_MASTER, -1);
         goto err;
     }
 
     if (wallet_generate_key(&node, keypath, wallet_get_master(),
                             wallet_get_chaincode()) != DBB_OK) {
         commander_clear_report();
-        commander_fill_report(cmd_str(CMD_checkpub), NULL, DBB_ERR_KEY_CHILD);
+        commander_ser_set_err(CMD_checkpub, DBB_ERR_KEY_CHILD, -1);
         goto err;
     }
 
@@ -293,34 +293,34 @@ err:
 }
 
 
-int wallet_sign(const uint8_t *data, const char *keypath)
+int wallet_sign(const uint8_t *data, const char *keypath, uint8_t *sig_out, uint8_t *pub_key_out)
 {
-    uint8_t sig[64];
-    uint8_t pub_key[33];
     HDNode node;
+    if (!sig_out || !pub_key_out)
+        goto err;
 
     if (wallet_seeded() != DBB_OK) {
         commander_clear_report();
-        commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_KEY_MASTER);
+        commander_ser_set_err(CMD_sign, DBB_ERR_KEY_MASTER, -1);
         goto err;
     }
 
     if (wallet_generate_key(&node, keypath, wallet_get_master(),
                             wallet_get_chaincode()) != DBB_OK) {
         commander_clear_report();
-        commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_KEY_CHILD);
+        commander_ser_set_err(CMD_sign, DBB_ERR_KEY_CHILD, -1);
         goto err;
     }
 
-    if (ecc_sign_digest(node.private_key, data, sig)) {
+    if (ecc_sign_digest(node.private_key, data, sig_out)) {
         commander_clear_report();
-        commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_ECCLIB);
+        commander_ser_set_err(CMD_sign, DBB_ERR_SIGN_ECCLIB, -1);
         goto err;
     }
 
-    ecc_get_public_key33(node.private_key, pub_key);
+    ecc_get_public_key33(node.private_key, pub_key_out);
     utils_zero(&node, sizeof(HDNode));
-    return commander_fill_signature_array(sig, pub_key);
+    return DBB_OK;
 
 err:
     utils_zero(&node, sizeof(HDNode));

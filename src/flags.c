@@ -44,18 +44,20 @@ const struct dbb_str_instr CMD_ENUM_TBL[] = { CMD_TABLE };
 const struct dbb_str_instr ATTR_ENUM_TBL[] = { ATTR_TABLE };
 #undef X
 
-#define X(a, b, c) #b,
-const char *const FLAG_CODE[] = { FLAG_TABLE };
+#define X(a, b, c) b,
+const uint16_t FLAG_CODE[] = { FLAG_TABLE };
 #undef X
 
 #define X(a, b, c) c,
 const char *const FLAG_MSG[] = { FLAG_TABLE };
 #undef X
 
+
 const char *cmd_str(int cmd)
 {
     return CMD_ENUM_TBL[cmd].str;
 }
+
 
 uint16_t cmd_instr(enum CMD_ENUM enum_index)
 {
@@ -69,7 +71,13 @@ const char *attr_str(int attr)
 }
 
 
-const char *flag_code(int flag)
+uint16_t attr_instr(enum CMD_ATTR_ENUM enum_index)
+{
+    return ATTR_ENUM_TBL[enum_index].ins;
+}
+
+
+uint16_t flag_code(int flag)
 {
     return FLAG_CODE[flag];
 }

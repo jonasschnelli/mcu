@@ -75,6 +75,9 @@
 #define _STRINGIFY(S) #S
 #define STRINGIFY(S) _STRINGIFY(S)
 
+// Response flasgs
+#define DBB_RESPONSE_FLAG_ENCRYPTED                (1<<0)
+#define DBB_RESPONSE_FLAG_ENCRYPTED_VERIFYKEY      (1<<1)
 
 // Command keys
 #define CMD_TABLE \
@@ -125,6 +128,8 @@ X(pin, 46)            \
 X(valuearray, 150)          \
 X(hashkeypatharray, 151)          \
 X(pubkeykeypatharray, 152)          \
+X(pubkeystatusarray, 152)          \
+X(sigpubkeyarray, 153)          \
 /*  reply keys  */\
 X(ciphertext, 47)     \
 X(echo, 48)           \
@@ -134,6 +139,10 @@ X(input, 51)          \
 X(ataes, 52)          \
 X(touchbutton, 53)    \
 X(warning, 54)        \
+X(value_str, 180)          \
+X(value_bool, 181)          \
+X(value_num, 182)          \
+X(error, 183)          \
 X(NUM, 0)             /* keep last */
 
 
@@ -271,8 +280,8 @@ enum FLAG_ENUM { FLAG_TABLE };
 const char *cmd_str(int cmd);
 uint16_t cmd_instr(enum CMD_ENUM enum_index);
 const char *attr_str(int attr);
-const char *flag_code(int flag);
+uint16_t attr_instr(enum CMD_ATTR_ENUM enum_index);
+uint16_t flag_code(int flag);
 const char *flag_msg(int flag);
-
 
 #endif

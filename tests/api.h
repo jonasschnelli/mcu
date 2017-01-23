@@ -537,11 +537,14 @@ static const char *api_read_value(int cmd)
     static char value[HID_REPORT_SIZE];
     memset(value, 0, sizeof(value));
 
+    const char *test = utils_read_decrypted_report();
+    (void)(test);
     yajl_val json_node = yajl_tree_parse(utils_read_decrypted_report(), NULL, 0);
     if (json_node && YAJL_IS_OBJECT(json_node)) {
         const char *path[] = { cmd_str(cmd), NULL };
         yajl_val v = yajl_tree_get(json_node, path, yajl_t_string);
-        snprintf(value, sizeof(value), "%s", v->u.string);
+        if (v)
+            snprintf(value, sizeof(value), "%s", v->u.string);
     }
 
     yajl_tree_free(json_node);

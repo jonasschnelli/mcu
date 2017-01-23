@@ -43,7 +43,7 @@ int wallet_split_seed(char **seed_words, const char *message);
 int wallet_seeded(void);
 int wallet_generate_master(const char *passphrase, const char *entropy_in);
 int wallet_check_pubkey(uint8_t *pubkey, const char *keypath);
-int wallet_sign(const uint8_t *message, const char *keypath);
+int wallet_sign(const uint8_t *data, const char *keypath, uint8_t *sig_out, uint8_t *pub_key_out);
 void wallet_report_xpub(const char *keypath, char *xpub);
 void wallet_report_id(char *id);
 int wallet_generate_key(HDNode *node, const char *keypath, const uint8_t *privkeymaster,

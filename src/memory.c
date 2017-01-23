@@ -99,7 +99,7 @@ static int memory_eeprom(uint8_t *write_b, uint8_t *read_b, const int32_t addr,
 #ifndef TESTING
     // read current memory
     if (ataes_eeprom(len, addr, read_b, NULL) != DBB_OK) {
-        commander_fill_report(cmd_str(CMD_ataes), NULL, DBB_ERR_MEM_ATAES);
+        commander_ser_set_err(CMD_ataes, DBB_ERR_MEM_ATAES, -1);
         return DBB_ERROR;
     }
 #endif
@@ -112,7 +112,7 @@ static int memory_eeprom(uint8_t *write_b, uint8_t *read_b, const int32_t addr,
             }
         }
         if (ataes_eeprom(len, addr, read_b, write_b) != DBB_OK) {
-            commander_fill_report(cmd_str(CMD_ataes), NULL, DBB_ERR_MEM_ATAES);
+            commander_ser_set_err(CMD_ataes, DBB_ERR_MEM_ATAES, -1);
             return DBB_ERROR;
         }
         if (read_b) {

@@ -51,7 +51,9 @@ void utils_uint64_to_varint(char *vi, int *l, uint64_t i);
 int utils_varint_to_uint64(const char *vi, uint64_t *i);
 #ifdef TESTING
 const char *utils_read_decrypted_report(void);
+const uint8_t *utils_read_decrypted_report_bin(int *len_out);
 void utils_decrypt_report(const char *report, PASSWORD_ID dec_id);
+void utils_decrypt_report_bin(const uint8_t *report, int len, PASSWORD_ID dec_id);
 void utils_send_cmd(const uint8_t *cmd, uint16_t len, PASSWORD_ID enc_id);
 #endif
 

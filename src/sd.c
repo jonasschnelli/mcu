@@ -54,7 +54,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
     char buffer[256];
 
     if (utils_limit_alphanumeric_hyphen_underscore_period(fn) != DBB_OK) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_BAD_CHAR);
+        commander_ser_set_err(cmd, DBB_ERR_SD_BAD_CHAR, -1);
         goto err;
     }
 
@@ -65,7 +65,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
     sd_listing_pos = 0;
 
     if (CTRL_FAIL == sd_mmc_test_unit_ready(0)) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_CARD);
+        commander_ser_set_err(cmd, DBB_ERR_SD_CARD, -1);
         goto err;
     }
 
@@ -75,7 +75,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
     memset(&fs, 0, sizeof(FATFS));
     res = f_mount(LUN_ID_SD_MMC_0_MEM, &fs);
     if (FR_INVALID_DRIVE == res) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_MOUNT);
+        commander_ser_set_err(cmd, DBB_ERR_SD_MOUNT, -1);
         goto err;
     }
 
@@ -84,7 +84,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
     res = f_open(&file_object, (char const *)file,
                  (replace == DBB_SD_REPLACE ? FA_CREATE_ALWAYS : FA_CREATE_NEW) | FA_WRITE);
     if (res != FR_OK) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_OPEN_FILE);
+        commander_ser_set_err(cmd, DBB_ERR_SD_OPEN_FILE, -1);
         f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
         goto err;
     }
@@ -112,7 +112,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
         len_xref += f_printf(&file_object, SD_PDF_TEXT_0);
         while (n < strlens(wallet_backup)) {
             if (EOF == f_putc(wallet_backup[n], &file_object)) {
-                commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_WRITE_FILE);
+                commander_ser_set_err(cmd, DBB_ERR_SD_WRITE_FILE, -1);
                 f_close(&file_object);
                 f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
                 goto err;
@@ -128,7 +128,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
         n = 0;
         while (n < strlens(wallet_name)) {
             if (EOF == f_putc(wallet_name[n], &file_object)) {
-                commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_WRITE_FILE);
+                commander_ser_set_err(cmd, DBB_ERR_SD_WRITE_FILE, -1);
                 f_close(&file_object);
                 f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
                 goto err;
@@ -144,7 +144,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
         n = 0;
         while (n < strlens(wallet_name)) {
             if (EOF == f_putc(wallet_name[n], &file_object)) {
-                commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_WRITE_FILE);
+                commander_ser_set_err(cmd, DBB_ERR_SD_WRITE_FILE, -1);
                 f_close(&file_object);
                 f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
                 goto err;
@@ -167,7 +167,7 @@ uint8_t sd_write(const char *fn, const char *wallet_backup, const char *wallet_n
 
         if (len_1 == EOF || len_2 == EOF || len_3 == EOF || len_4 == EOF ||
                 len_xref == EOF || len_total == EOF) {
-            commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_WRITE_FILE);
+            commander_ser_set_err(cmd, DBB_ERR_SD_WRITE_FILE, -1);
             f_close(&file_object);
             f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
             goto err;
@@ -192,7 +192,7 @@ char *sd_load(const char *fn, int cmd)
     static char text[512];
 
     if (utils_limit_alphanumeric_hyphen_underscore_period(fn) != DBB_OK) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_BAD_CHAR);
+        commander_ser_set_err(cmd, DBB_ERR_SD_BAD_CHAR, -1);
         goto err;
     }
 
@@ -203,7 +203,7 @@ char *sd_load(const char *fn, int cmd)
     sd_listing_pos = 0;
 
     if (CTRL_FAIL == sd_mmc_test_unit_ready(0)) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_CARD);
+        commander_ser_set_err(cmd, DBB_ERR_SD_CARD, -1);
         goto err;
     }
 
@@ -211,14 +211,14 @@ char *sd_load(const char *fn, int cmd)
     memset(&fs, 0, sizeof(FATFS));
     res = f_mount(LUN_ID_SD_MMC_0_MEM, &fs);
     if (FR_INVALID_DRIVE == res) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_MOUNT);
+        commander_ser_set_err(cmd, DBB_ERR_SD_MOUNT, -1);
         goto err;
     }
 
     snprintf(file, sizeof(file), "%s/%s", ROOTDIR, fn);
     res = f_open(&file_object, (char const *)file, FA_OPEN_EXISTING | FA_READ);
     if (res != FR_OK) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_OPEN_FILE);
+        commander_ser_set_err(cmd, DBB_ERR_SD_OPEN_FILE, -1);
         f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
         goto err;
     }
@@ -228,7 +228,7 @@ char *sd_load(const char *fn, int cmd)
     unsigned content_found = 0, text_p_index = 0;
     while (1) {
         if (0 == f_gets(line, sizeof(line), &file_object)) {
-            commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_READ_FILE);
+            commander_ser_set_err(cmd, DBB_ERR_SD_READ_FILE, -1);
             f_close(&file_object);
             f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
             goto err;
@@ -284,7 +284,7 @@ uint8_t sd_list(int cmd)
     sd_listing_pos = 0;
 
     if (CTRL_FAIL == sd_mmc_test_unit_ready(0)) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_CARD);
+        commander_ser_set_err(cmd, DBB_ERR_SD_CARD, -1);
         goto err;
     }
 
@@ -292,7 +292,7 @@ uint8_t sd_list(int cmd)
     memset(&fs, 0, sizeof(FATFS));
     res = f_mount(LUN_ID_SD_MMC_0_MEM, &fs);
     if (FR_INVALID_DRIVE == res) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_MOUNT);
+        commander_ser_set_err(cmd, DBB_ERR_SD_MOUNT, -1);
         goto err;
     }
 
@@ -323,7 +323,7 @@ uint8_t sd_list(int cmd)
             f_len += strlen(pc_fn) + strlens(",\"\"");
             if (f_len + 1 >= sizeof(files)) {
                 f_mount(LUN_ID_SD_MMC_0_MEM, NULL);
-                commander_fill_report(cmd_str(CMD_warning), flag_msg(DBB_WARN_SD_NUM_FILES), DBB_OK);
+                commander_ser_set_err(CMD_warning, DBB_WARN_SD_NUM_FILES, -1);
                 strcat(files, "\"]");
                 goto exit;
             }
@@ -339,7 +339,7 @@ uint8_t sd_list(int cmd)
         }
         strcat(files, "]");
     } else {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_OPEN_DIR);
+        commander_ser_set_err(cmd, DBB_ERR_SD_OPEN_DIR, -1);
     }
 
 exit:
@@ -522,7 +522,7 @@ uint8_t sd_erase(int cmd, const char *fn)
     sd_listing_pos = 0;
 
     if (CTRL_FAIL == sd_mmc_test_unit_ready(0)) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_CARD);
+        commander_ser_set_err(cmd, DBB_ERR_SD_CARD, -1);
         return DBB_ERROR;
     }
 
@@ -530,13 +530,13 @@ uint8_t sd_erase(int cmd, const char *fn)
     memset(&fs, 0, sizeof(FATFS));
     res = f_mount(LUN_ID_SD_MMC_0_MEM, &fs);
     if (FR_INVALID_DRIVE == res) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_MOUNT);
+        commander_ser_set_err(cmd, DBB_ERR_SD_MOUNT, -1);
         return DBB_ERROR;
     }
 
     if (strlens(fn)) {
         if (utils_limit_alphanumeric_hyphen_underscore_period(fn) != DBB_OK) {
-            commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_BAD_CHAR);
+            commander_ser_set_err(cmd, DBB_ERR_SD_BAD_CHAR, -1);
             f_mount(LUN_ID_SD_MMC_0_MEM, NULL); // Unmount
             return DBB_ERROR;
         }
@@ -548,10 +548,10 @@ uint8_t sd_erase(int cmd, const char *fn)
     f_mount(LUN_ID_SD_MMC_0_MEM, NULL); // Unmount
 
     if (failed) {
-        commander_fill_report(cmd_str(cmd), NULL, DBB_ERR_SD_ERASE);
+        commander_ser_set_err(cmd, DBB_ERR_SD_ERASE, -1);
         return DBB_ERROR;
     } else {
-        commander_fill_report(cmd_str(cmd), attr_str(ATTR_success), DBB_OK);
+        commander_ser_cmd_attr(cmd, ATTR_success);
         return DBB_OK;
     }
 }

@@ -32,22 +32,29 @@
 #include <stdint.h>
 #include "memory.h"
 
+#include "flags.h"
+
 
 char *aes_cbc_b64_encrypt(const unsigned char *in, int inlen, int *out_b64len,
                           PASSWORD_ID id);
+uint8_t *aes_cbc_encrypt_pad(const unsigned char *in, int inlen, int *out_len,
+                          PASSWORD_ID id);
 char *aes_cbc_b64_decrypt(const unsigned char *in, int inlen, int *decrypt_len,
                           PASSWORD_ID id);
-
+uint8_t *aes_cbc_decrypt_pad(const unsigned char *in, int inlen, int *decrypt_len,
+                          PASSWORD_ID id);
 void commander_clear_report(void);
+
+/* serialize functions */
+void commander_ser_set_err(enum CMD_ENUM cmd_index, int flag, int attempts_left);
+static void commander_ser_cmd_attr(enum CMD_ENUM cmd_index, enum CMD_ATTR_ENUM attr_index);
+
 const char *commander_read_report(void);
-const char *commander_read_array(void);
+void commander_ser_to_report(enum CMD_ENUM cmd_instr, enum CMD_ATTR_ENUM attr_instr, int flag);
 void commander_fill_report(const char *attr, const char *val, int err);
-int commander_fill_signature_array(const uint8_t *sig, const uint8_t *pubkey);
-int commander_fill_json_array(const char **key, const char **value, int *type,
-                              int cmd);
 void commander_force_reset(void);
 void commander_create_verifypass(void);
-char *commander(const uint8_t *cmd, int cmd_len);
+const uint8_t *commander(const uint8_t *command, int cmd_len, int *len_out);
 
 
 #endif
