@@ -47,7 +47,9 @@ void commander_clear_report(void);
 
 /* serialize functions */
 void commander_ser_set_err(enum CMD_ENUM cmd_index, int flag, int attempts_left);
-static void commander_ser_cmd_attr(enum CMD_ENUM cmd_index, enum CMD_ATTR_ENUM attr_index);
+void commander_ser_cmd_attr(enum CMD_ENUM cmd_index, enum CMD_ATTR_ENUM attr_index);
+void commander_ser_buf(const uint8_t *buf, int len);
+void commander_ser_u16(uint16_t c_instr);
 
 const char *commander_read_report(void);
 void commander_ser_to_report(enum CMD_ENUM cmd_instr, enum CMD_ATTR_ENUM attr_instr, int flag);

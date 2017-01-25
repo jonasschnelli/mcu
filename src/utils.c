@@ -219,9 +219,58 @@ int utils_varint_to_uint64(const char *vi, uint64_t *i)
 
 #ifdef TESTING
 #include <assert.h>
+#include <ctype.h>
 #include "commander.h"
 #include "yajl/src/api/yajl_tree.h"
 
+#ifndef HEXDUMP_COLS
+#define HEXDUMP_COLS 8
+#endif
+
+void hexdump(void *mem, unsigned int len)
+{
+        unsigned int i, j;
+
+        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+        {
+                /* print offset */
+                if(i % HEXDUMP_COLS == 0)
+                {
+                        printf("0x%06x: ", i);
+                }
+
+                /* print hex data */
+                if(i < len)
+                {
+                        printf("%02x ", 0xFF & ((char*)mem)[i]);
+                }
+                else /* end of block, just aligning for ASCII dump */
+                {
+                        printf("   ");
+                }
+
+                /* print ASCII dump */
+                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+                {
+                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+                        {
+                                if(j >= len) /* end of block, not really printing */
+                                {
+                                        putchar(' ');
+                                }
+                                else if(isprint(((char*)mem)[j])) /* printable char */
+                                {
+                                        putchar(0xFF & ((char*)mem)[j]);
+                                }
+                                else /* other char */
+                                {
+                                        putchar('.');
+                                }
+                        }
+                        putchar('\n');
+                }
+        }
+}
 
 static const char *flag_msg_from_code(uint16_t search_code)
 {
@@ -287,6 +336,8 @@ void utils_decrypt_report_bin(const uint8_t *report, int len, PASSWORD_ID dec_id
         uint8_t *dec = aes_cbc_decrypt_pad((const unsigned char *)&report[1], len-1, &decrypt_len, (response_flags & DBB_RESPONSE_FLAG_ENCRYPTED_VERIFYKEY) ? PASSWORD_VERIFY : dec_id);
         // copy everything except the flag
         assert(decrypt_len < (int)sizeof(decrypted_report_bin));
+        printf("Decrypted response:\n");
+        hexdump(dec, decrypt_len);
         memcpy(decrypted_report_bin, dec, decrypt_len);
         decrypted_report_bin_len = decrypt_len;
         free(dec);

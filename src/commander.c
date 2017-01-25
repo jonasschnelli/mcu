@@ -53,7 +53,6 @@
 extern const uint8_t MEM_PAGE_ERASE[MEM_PAGE_LEN];
 
 static int REPORT_BUF_OVERFLOW = 0;
-__extension__ static uint8_t json_array[] = {[0 ... COMMANDER_ARRAY_MAX] = 0};
 __extension__ static uint8_t response_report[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
 static uint8_t *response_report_current_p = response_report;
 __extension__ static uint8_t sign_command[] = {[0 ... COMMANDER_REPORT_SIZE] = 0};
@@ -388,7 +387,7 @@ static int commander_report_fits(int len)
 }
 
 /* append a plain buffer */
-static void commander_ser_buf(const uint8_t *buf, int len)
+void commander_ser_buf(const uint8_t *buf, int len)
 {
     if (!commander_report_fits(len))
         return;
@@ -397,7 +396,7 @@ static void commander_ser_buf(const uint8_t *buf, int len)
 }
 
 /* serialize a uint16_t */
-static void commander_ser_u16(uint16_t c_instr)
+void commander_ser_u16(uint16_t c_instr)
 {
     if (!commander_report_fits(sizeof(c_instr)))
         return;
@@ -420,7 +419,7 @@ static void commander_ser_attr(enum CMD_ATTR_ENUM attr_index)
 }
 
 
-static void commander_ser_cmd_attr(enum CMD_ENUM cmd_index, enum CMD_ATTR_ENUM attr_index)
+void commander_ser_cmd_attr(enum CMD_ENUM cmd_index, enum CMD_ATTR_ENUM attr_index)
 {
     commander_ser_cmd(cmd_index);
     commander_ser_attr(attr_index);
@@ -848,7 +847,8 @@ static int commander_process_sign(const uint8_t *command, int cmd_len)
     commander_ser_cmd(CMD_sign);
     commander_ser_cmd(CMD_sigpubkeyarray);
     arr_len = (hashkeypath[c] << 8) + hashkeypath[c + 1];
-    if (arr_len > COMMANDER_ARRAY_MAX) {
+    int arr_len_comparable = (int)arr_len;
+    if (arr_len_comparable > COMMANDER_ARRAY_MAX) {
         commander_ser_set_err(CMD_sign, DBB_ERR_IO_INVALID_CMD, -1);
         return DBB_ERROR;
     }
@@ -1372,6 +1372,7 @@ static void commander_process_password(const uint8_t *command, int cmd_len, PASS
     }
 
     commander_ser_cmd_attr(CMD_password, ATTR_success);
+    commander_ser_str(value);
 }
 
 
@@ -1524,9 +1525,9 @@ static int commander_echo_command(const uint8_t *command, int cmd_len)
         commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
         return DBB_ERROR;
     } else {
-        memset(json_array, 0, COMMANDER_ARRAY_MAX);
         arr_len = (hashkeypath[c] << 8) + hashkeypath[c + 1];
-        if (arr_len == 0 || arr_len > COMMANDER_ARRAY_MAX) {
+        int arr_len_comparable = (int)arr_len;
+        if (arr_len == 0 || arr_len_comparable > COMMANDER_ARRAY_MAX) {
             commander_clear_report();
             commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
             return DBB_ERROR;
@@ -1557,9 +1558,9 @@ static int commander_echo_command(const uint8_t *command, int cmd_len)
 
     if (checkpubkey && checkpubkey_len >= 2) {
         arr_len=0; ele_len=0; c = 0;
-        memset(json_array, 0, COMMANDER_ARRAY_MAX);
         arr_len = (checkpubkey[c] << 8) + checkpubkey[c + 1];
-        if (arr_len > COMMANDER_ARRAY_MAX) {
+        int arr_len_comparable = (int)arr_len;
+        if (arr_len_comparable > COMMANDER_ARRAY_MAX) {
             commander_clear_report();
             commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_IO_INVALID_CMD);
             return DBB_ERROR;
@@ -1622,7 +1623,6 @@ static int commander_echo_command(const uint8_t *command, int cmd_len)
 deser_error:
     commander_clear_report();
     commander_fill_report(cmd_str(CMD_sign), NULL, DBB_ERR_SIGN_DESERIAL);
-    memset(json_array, 0, COMMANDER_ARRAY_MAX);
     return DBB_ERROR;
 }
 
@@ -1780,6 +1780,10 @@ static uint8_t *commander_decrypt(const uint8_t *encrypted_command, int enc_len,
         // Incorrect input
         err_iter = memory_access_err_count(DBB_ACCESS_ITERATE);
         commander_access_err(DBB_ERR_IO_JSON_PARSE, err_iter);
+        commander_ser_cmd(CMD_value_str);
+        commander_ser_u16(32);
+        uint8_t *test = memory_report_aeskey(PASSWORD_STAND);
+        commander_ser_buf(test, 32);
     }
 
     if (err_iter - err_count == 0 && err == 0) {
@@ -1834,6 +1838,14 @@ static int commander_check_init(const uint8_t *encrypted_command_compl, int enc_
             if (ret == DBB_OK) {
                 memory_write_erased(0);
                 commander_ser_cmd_attr(CMD_password, ATTR_success);
+                uint8_t *test = memory_report_aeskey(PASSWORD_STAND);
+                commander_ser_str(utils_uint8_to_hex(test, 32));
+//                commander_ser_cmd(CMD_value_str);
+//                commander_ser_u16(31);
+//                memory_write_aeskey("0000", 4, PASSWORD_STAND);
+//                uint8_t *test = memory_report_aeskey(PASSWORD_STAND);
+//                commander_ser_buf(test, 32);
+//                commander_ser_u16(30);
             } else {
                 commander_fill_report(cmd_str(CMD_password), NULL, ret);
             }

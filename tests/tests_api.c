@@ -1387,7 +1387,7 @@ int main(void)
     memory_setup();
     memory_setup(); // run twice
     printf("\n\nInternal API Result:\n");
-    run_utests();
+    //run_utests();
 
 #ifndef CONTINUOUS_INTEGRATION
     // Live test of the HID API
@@ -1400,7 +1400,12 @@ int main(void)
         printf("\n\nNot testing HID API. A device is not connected.\n\n");
     } else {
         printf("\n\nHID API Result:\n");
-        run_utests();
+
+        api_format_send_cmd(cmd_str(CMD_password), tests_pwd, PASSWORD_NONE);
+        api_format_send_cmd(cmd_str(CMD_led), attr_str(ATTR_blink), PASSWORD_STAND);
+        printf("%s\n", utils_read_decrypted_report());
+
+        //run_utests();
     }
     api_hid_close();
 #endif

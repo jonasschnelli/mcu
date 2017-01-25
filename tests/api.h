@@ -37,6 +37,7 @@
 #include "u2f_device.h"
 #include "usb.h"
 
+#include <assert.h>
 
 #define HWW_CID 0xff000000
 #define HID_REPORT_SIZE   COMMANDER_REPORT_SIZE
@@ -235,7 +236,11 @@ static void api_hid_read(PASSWORD_ID id)
         printf("ERROR: Unable to read report.\n");
         return;
     }
-    utils_decrypt_report((char *)HID_REPORT, id);
+    void *buf = malloc(res); memcpy(buf, HID_REPORT, res);
+    printf("Raw response:\n");
+    hexdump(buf, res);
+    free(buf);
+    utils_decrypt_report_bin(HID_REPORT, res, id);
 }
 
 
@@ -496,10 +501,43 @@ static int api_send_cmd(const char *command, PASSWORD_ID id)
     }
 #ifndef CONTINUOUS_INTEGRATION
     else if (id == PASSWORD_NONE) {
-        api_hid_send_len(command_ser, len);
+        uint8_t cmd[COMMANDER_REPORT_SIZE] = {0};
+        assert(len < COMMANDER_REPORT_SIZE-1);
+        memcpy(cmd+1, command_ser, len);
+
+        printf("Send raw command:\n");
+        hexdump(cmd, len+1);
+
+        api_hid_send_len(cmd, len+1);
         api_hid_read(id);
     } else {
-        api_hid_send_encrypt(command_ser, len, id);
+
+        printf("Send encrypted command:\nRaw:\n");
+        hexdump(command_ser, len);
+
+        int encrypt_len;
+        uint8_t *enc = aes_cbc_encrypt_pad((const unsigned char *)command_ser, len,
+                                        &encrypt_len,
+                                        id);
+        uint8_t cmd[COMMANDER_REPORT_SIZE] = {0};
+        assert(encrypt_len < COMMANDER_REPORT_SIZE-1);
+        cmd[0] = 0;
+        cmd[0] |= DBB_RESPONSE_FLAG_ENCRYPTED;
+        memcpy(cmd+1, enc, encrypt_len);
+        free(enc);
+
+        printf("Encrypted:\n");
+        hexdump(cmd, len+1);
+
+        int dec_len_out = 0;
+        uint8_t *command_tst = aes_cbc_decrypt_pad((const unsigned char *)cmd+1,
+                                      encrypt_len,
+                                      &dec_len_out,
+                                      PASSWORD_STAND);
+        (void)(command_tst);
+
+
+        api_hid_send_len(cmd, encrypt_len+1);
         api_hid_read(id);
     }
 #endif
@@ -527,7 +565,21 @@ static int api_format_send_cmd(const char *cmd, const char *val, PASSWORD_ID id)
 
 static void api_reset_device(void)
 {
-    api_format_send_cmd(cmd_str(CMD_password), tests_pwd, PASSWORD_NONE); // if not set
+    if (TEST_LIVE_DEVICE)
+    {
+        for (unsigned int i = 0; i < 20; i++) {
+            api_format_send_cmd(cmd_str(CMD_password), tests_pwd, PASSWORD_NONE); // if not set
+            const char *test = utils_read_decrypted_report();
+            if(strstr(test,attr_str(ATTR_success)))
+            {
+                api_format_send_cmd(cmd_str(CMD_password), tests_pwd, PASSWORD_NONE); // if not set
+                const char *test2 = utils_read_decrypted_report();
+                (void)(test2);
+                break;
+            }
+        }
+    }
+
     api_format_send_cmd(cmd_str(CMD_reset), attr_str(ATTR___ERASE__), PASSWORD_STAND);
 }
 
@@ -566,6 +618,7 @@ static char *api_read_value_decrypt(int cmd, PASSWORD_ID id)
     free(dec);
     return val_dec;
 }
+
 
 #endif
 
