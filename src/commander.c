@@ -599,6 +599,11 @@ static void commander_process_seed(yajl_val json_node)
     } else if (ret == DBB_ERROR_MEM) {
         commander_fill_report(cmd_str(CMD_seed), NULL, DBB_ERR_MEM_ATAES);
     } else if (ret == DBB_OK) {
+        // unset U2F bit = enable U2F by default
+        uint32_t flags = memory_extflag_read();
+        flags &= ~(EXT_FLAG_U2F);
+        memory_extflag_write(flags);
+
         commander_clear_report();
         commander_fill_report(cmd_str(CMD_seed), attr_str(ATTR_success), DBB_OK);
     } else {
