@@ -38,6 +38,7 @@
 #include "utils.h"
 #include "flags.h"
 #include "sha2.h"
+#include "hmac.h"
 #include "aes.h"
 #include "led.h"
 #include "ecc.h"
@@ -1594,8 +1595,7 @@ exit:
     encoded_report = aes_cbc_b64_encrypt((unsigned char *)json_report,
                                          strlens(json_report),
                                          &encrypt_len,
-                                         wallet_is_hidden() ? memory_report_aeskey(PASSWORD_HIDDEN) : memory_report_aeskey(
-                                                 PASSWORD_STAND));
+                                         memory_report_sessionkey());
     commander_clear_report();
     if (encoded_report) {
         commander_fill_report(cmd_str(CMD_ciphertext), encoded_report, DBB_OK);
@@ -1620,7 +1620,7 @@ static char *commander_decrypt(const char *encrypted_command)
     command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
                                   strlens(encrypted_command),
                                   &command_len,
-                                  memory_report_aeskey(PASSWORD_STAND));
+                                  memory_report_sessionkey());
 
     err_count = memory_report_access_err_count();
     err_iter = memory_report_access_err_count() + 1;
@@ -1725,7 +1725,7 @@ static int commander_check_init(const char *encrypted_command)
     }
 
     // Force setting a password before processing any other command.
-    if (!memory_report_erased()) {
+    if (!memory_report_erased() && memory_report_sessionkey_isset()) {
         return DBB_OK;
     }
 
@@ -1744,6 +1744,32 @@ static int commander_check_init(const char *encrypted_command)
                 }
                 yajl_tree_free(json_node);
                 return DBB_ERROR;
+            }
+
+            const char *path_ses[] = { cmd_str(CMD_session), NULL };
+            const char *ses_pubkey = YAJL_GET_STRING(yajl_tree_get(json_node, path_ses, yajl_t_string));
+            if (ses_pubkey && strlens(ses_pubkey) == 66) {
+                /* requests a session */
+                uint8_t rand_privkey[32], ecdh_secret[32], sym_aes_key[32], out_pubkey[33];
+
+                if (random_bytes(rand_privkey, sizeof(rand_privkey), 0) == DBB_ERROR) {
+                    commander_fill_report(cmd_str(CMD_session), NULL, DBB_ERR_MEM_ATAES);
+                    yajl_tree_free(json_node);
+                    return DBB_ERROR;
+                }
+                if (bitcoin_ecc.ecc_ecdh(utils_hex_to_uint8(ses_pubkey), rand_privkey, ecdh_secret, ECC_SECP256k1)) {
+                    commander_fill_report(cmd_str(CMD_session), NULL, DBB_ERR_KEY_ECDH);
+                    yajl_tree_free(json_node);
+                    return DBB_ERROR;
+                }
+                // TODO: eventually switch to HKDF or PBKDF2
+                hmac_sha256((const uint8_t *)"DBBECDHsession", 14, ecdh_secret, SHA256_DIGEST_LENGTH, sym_aes_key);
+                memory_report_sessionkey_set(sym_aes_key);
+
+                bitcoin_ecc.ecc_get_public_key33(rand_privkey, out_pubkey, ECC_SECP256k1);
+                yajl_tree_free(json_node);
+                commander_fill_report(cmd_str(CMD_session), utils_uint8_to_hex(out_pubkey, 33), DBB_OK);
+                return DBB_ERROR; /* return error at this stage results in not decryption the command later */
             }
         }
         yajl_tree_free(json_node);

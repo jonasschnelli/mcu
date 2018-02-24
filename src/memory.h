@@ -115,5 +115,8 @@ uint32_t memory_u2f_count_iter(void);
 void memory_u2f_count_set(uint32_t c);
 uint32_t memory_u2f_count_read(void);
 
+uint8_t *memory_report_sessionkey(void);
+uint8_t memory_report_sessionkey_isset(void);
+void memory_report_sessionkey_set(uint8_t *keyin);
 
 #endif  // _MEMORY_H_

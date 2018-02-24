@@ -66,6 +66,10 @@ static hid_device *HID_HANDLE;
 #endif
 
 
+static const char test_session_privkey[64] = "754825cea85170082018efbb2c8737c15265320dd1316493aa92d9c4cd3958b9";
+static const char test_session_pubkey[66] = "03b30022edce26fe06be0d35e6ff32c22ccd5360faa40c85a7d3537534c835ce49";
+static const uint8_t test_session_hmac_key[32] = {0x00, 0x46, 0xbf, 0xc9, 0x60, 0x3c, 0x5b, 0x0b, 0xbc, 0x1e, 0x86, 0x07, 0x5e, 0x91, 0x48, 0xf1, 0x90, 0x5c, 0xa1, 0xc9, 0x98, 0x06, 0x56, 0xe2, 0x85, 0x7b, 0x89, 0x55, 0xa6, 0x15, 0x9f, 0x74};
+static uint8_t KEY_SESSION[MEM_PAGE_LEN];
 static const char tests_pwd[] = "0000";
 static const char hidden_pwd[] = "hide";
 static uint8_t KEY_STANDARD[MEM_PAGE_LEN];

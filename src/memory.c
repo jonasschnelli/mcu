@@ -52,6 +52,10 @@ static uint32_t MEM_u2f_count = DEFAULT_u2f_count;
 static uint16_t MEM_pin_err = DBB_ACCESS_INITIALIZE;
 static uint16_t MEM_access_err = DBB_ACCESS_INITIALIZE;
 
+/* in memory only */
+static uint8_t MEM_session_key_set = 0;
+__extension__ static uint8_t MEM_aeskey_session[] = {[0 ... MEM_PAGE_LEN - 1] = 0x00};
+
 __extension__ static uint8_t MEM_aeskey_stand[] = {[0 ... MEM_PAGE_LEN - 1] = 0xFF};
 __extension__ static uint8_t MEM_aeskey_reset[] = {[0 ... MEM_PAGE_LEN - 1] = 0xFF};
 __extension__ static uint8_t MEM_aeskey_verify[] = {[0 ... MEM_PAGE_LEN - 1] = 0xFF};
@@ -519,4 +523,20 @@ uint32_t memory_read_ext_flags(void)
 uint32_t memory_report_ext_flags(void)
 {
     return MEM_ext_flags;
+}
+
+uint8_t *memory_report_sessionkey(void)
+{
+    return MEM_aeskey_session;
+}
+
+uint8_t memory_report_sessionkey_isset(void)
+{
+    return MEM_session_key_set;
+}
+
+void memory_report_sessionkey_set(uint8_t *keyin)
+{
+    memcpy(MEM_aeskey_session, keyin, MEM_PAGE_LEN);
+    MEM_session_key_set = 1;
 }

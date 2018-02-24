@@ -32,6 +32,7 @@
 #include "sd.h"
 #include "ecc.h"
 #include "sha2.h"
+#include "hmac.h"
 #include "utest.h"
 #include "utils.h"
 #include "flags.h"
@@ -2223,7 +2224,22 @@ static void tests_memory_setup(void)
     memory_setup();
     memory_setup(); // run twice
 
+    api_format_send_cmd(cmd_str(CMD_session), test_session_pubkey, NULL);
+    const char *device_pubkey_hex = api_read_value(CMD_session);
+
+    uint8_t host_privkey[32]; memcpy(host_privkey, utils_hex_to_uint8(test_session_privkey), 32);
+    uint8_t device_pubkey[33]; memcpy(device_pubkey, utils_hex_to_uint8(device_pubkey_hex), 33);
+    uint8_t ecdh_secret[32];
+
+    if (bitcoin_ecc.ecc_ecdh(device_pubkey, host_privkey, ecdh_secret, ECC_SECP256k1)) {
+
+    }
+
+    hmac_sha256((const uint8_t *)"DBBECDHsession", 14, ecdh_secret, SHA256_DIGEST_LENGTH, KEY_SESSION);
+
     api_format_send_cmd(cmd_str(CMD_password), tests_pwd, NULL);
+    api_format_send_cmd(cmd_str(CMD_name), "", KEY_SESSION);
+    u_assert_str_eq("My Digital Bitbox", api_read_value(CMD_name));
     ASSERT_SUCCESS
 }
 
