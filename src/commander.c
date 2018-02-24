@@ -794,7 +794,7 @@ static void commander_process_random(yajl_val json_node)
     encoded_report = aes_cbc_b64_encrypt((unsigned char *)echo_number,
                                          strlens(echo_number),
                                          &encrypt_len,
-                                         memory_report_verification_key());
+                                         memory_report_aeskey(PASSWORD_VERIFY));
     if (encoded_report) {
         commander_fill_report(cmd_str(CMD_echo), encoded_report, DBB_OK);
         free(encoded_report);
@@ -878,7 +878,7 @@ static void commander_process_verifypass(yajl_val json_node)
 
     if (strlens(value)) {
         if (STREQ(value, attr_str(ATTR_export))) {
-            memcpy(text, utils_uint8_to_hex(memory_report_verification_key(), 32), 64 + 1);
+            memcpy(text, utils_uint8_to_hex(memory_report_aeskey(PASSWORD_VERIFY), 32), 64 + 1);
             utils_clear_buffers();
             int ret = sd_write(VERIFYPASS_FILENAME, text, NULL,
                                NULL, DBB_SD_REPLACE, CMD_verifypass);
@@ -936,7 +936,7 @@ static void commander_process_verifypass(yajl_val json_node)
             char *enc = aes_cbc_b64_encrypt((const unsigned char *)VERIFYPASS_CRYPT_TEST,
                                             strlens(VERIFYPASS_CRYPT_TEST),
                                             &encrypt_len,
-                                            memory_report_verification_key());
+                                            memory_report_aeskey(PASSWORD_VERIFY));
             if (enc) {
                 snprintf(msg, sizeof(msg), "{\"%s\":\"%s\", \"%s\":\"%s\"}",
                          cmd_str(CMD_ecdh), utils_uint8_to_hex(out_pubkey, sizeof(out_pubkey)),
@@ -976,7 +976,7 @@ static void commander_process_xpub(yajl_val json_node)
         encoded_report = aes_cbc_b64_encrypt((unsigned char *)xpub,
                                              strlens(xpub),
                                              &encrypt_len,
-                                             memory_report_verification_key());
+                                             memory_report_aeskey(PASSWORD_VERIFY));
         if (encoded_report) {
             commander_fill_report(cmd_str(CMD_echo), encoded_report, DBB_OK);
             free(encoded_report);
@@ -999,33 +999,6 @@ static uint8_t commander_bootloader_unlocked(void)
     memcpy(sig, (uint8_t *)(FLASH_SIG_START), FLASH_SIG_LEN);
     return sig[FLASH_BOOT_LOCK_BYTE];
 #endif
-}
-
-
-static void commander_process_session(yajl_val json_node)
-{
-    const char *path[] = { cmd_str(CMD_session), NULL };
-    const char *value = YAJL_GET_STRING(yajl_tree_get(json_node, path, yajl_t_string));
-
-    if (!strlens(value)) {
-        commander_fill_report(cmd_str(CMD_session), NULL, DBB_ERR_IO_INVALID_CMD);
-        return;
-    }
-
-    if (STREQ(value, attr_str(ATTR_set))) {
-        commander_fill_report(cmd_str(CMD_session),
-                              utils_uint8_to_hex(memory_session_key_update(),
-                                      MEM_PAGE_LEN), DBB_OK);
-        return;
-    }
-
-    if (STREQ(value, attr_str(ATTR_off))) {
-        memory_session_key_off();
-        commander_fill_report(cmd_str(CMD_session), attr_str(ATTR_success), DBB_OK);
-        return;
-    }
-
-    commander_fill_report(cmd_str(CMD_session), NULL, DBB_ERR_IO_INVALID_CMD);
 }
 
 
@@ -1112,7 +1085,7 @@ static void commander_process_device(yajl_val json_node)
         char *tfa = aes_cbc_b64_encrypt((const unsigned char *)VERIFYPASS_CRYPT_TEST,
                                         strlens(VERIFYPASS_CRYPT_TEST),
                                         &tfa_len,
-                                        memory_report_verification_key());
+                                        memory_report_aeskey(PASSWORD_VERIFY));
         if (!tfa) {
             commander_clear_report();
             commander_fill_report(cmd_str(CMD_device), NULL, DBB_ERR_MEM_ENCRYPT);
@@ -1274,16 +1247,9 @@ static void commander_process_password(yajl_val json_node, int cmd, PASSWORD_ID 
 
     ret = commander_process_aes_key(value, strlens(value), id);
 
-    if (!memcmp(memory_read_aeskey(PASSWORD_STAND), memory_read_aeskey(PASSWORD_HIDDEN),
+    if (!memcmp(memory_report_aeskey(PASSWORD_STAND), memory_report_aeskey(PASSWORD_HIDDEN),
                 MEM_PAGE_LEN)) {
-
-        if (memory_session_key_get_state() == MEM_SESSION_KEY_STATE_STATIC) {
-            memory_session_key_set(memory_read_aeskey(PASSWORD_STAND));
-            memory_session_key_off();
-        }
-
         memory_random_password(PASSWORD_HIDDEN);
-        memory_clear_passwords();
         commander_fill_report(cmd_str(CMD_password), NULL, DBB_ERR_IO_PW_COLLIDE);
         return;
     }
@@ -1310,10 +1276,6 @@ static int commander_process(int cmd, yajl_val json_node)
 
         case CMD_password:
             commander_process_password(json_node, cmd, PASSWORD_STAND);
-            break;
-
-        case CMD_session:
-            commander_process_session(json_node);
             break;
 
         case CMD_verifypass:
@@ -1502,7 +1464,7 @@ static int commander_echo_command(yajl_val json_node)
     encoded_report = aes_cbc_b64_encrypt((unsigned char *)json_report,
                                          strlens(json_report),
                                          &encrypt_len,
-                                         memory_report_verification_key());
+                                         memory_report_aeskey(PASSWORD_VERIFY));
     commander_clear_report();
     if (encoded_report) {
         commander_fill_report(cmd_str(CMD_echo), encoded_report, DBB_OK);
@@ -1632,11 +1594,8 @@ exit:
     encoded_report = aes_cbc_b64_encrypt((unsigned char *)json_report,
                                          strlens(json_report),
                                          &encrypt_len,
-                                         memory_session_key_report());
-
-    if (memory_session_key_get_state() == MEM_SESSION_KEY_STATE_UPDATING) {
-        memory_session_key_set(NULL);
-    }
+                                         wallet_is_hidden() ? memory_report_aeskey(PASSWORD_HIDDEN) : memory_report_aeskey(
+                                                 PASSWORD_STAND));
     commander_clear_report();
     if (encoded_report) {
         commander_fill_report(cmd_str(CMD_ciphertext), encoded_report, DBB_OK);
@@ -1649,57 +1608,6 @@ exit:
 }
 
 
-static void commander_set_session_key(const char *encrypted_command)
-{
-    char *command;
-    int command_len = 0;
-    size_t json_object_len = 0;
-    uint8_t *key;
-
-    // Try standard wallet password
-    key = memory_read_aeskey(PASSWORD_STAND);
-    command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
-                                  strlens(encrypted_command),
-                                  &command_len, key);
-
-    if (strlens(command)) {
-        yajl_val json_node = yajl_tree_parse(command, NULL, 0);
-        if (json_node && YAJL_IS_OBJECT(json_node)) {
-            json_object_len = json_node->u.object.len;
-        }
-        yajl_tree_free(json_node);
-        free(command);
-
-        if (json_object_len) {
-            wallet_set_hidden(0);
-            memory_session_key_set(key);
-            return;
-        }
-    }
-
-    // Try hidden wallet password
-    key = memory_read_aeskey(PASSWORD_HIDDEN);
-    command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
-                                  strlens(encrypted_command),
-                                  &command_len, key);
-
-    if (strlens(command)) {
-        yajl_val json_node = yajl_tree_parse(command, NULL, 0);
-        if (json_node && YAJL_IS_OBJECT(json_node)) {
-            json_object_len = json_node->u.object.len;
-        }
-        yajl_tree_free(json_node);
-        free(command);
-
-        if (json_object_len) {
-            wallet_set_hidden(1);
-            memory_session_key_set(key);
-            return;
-        }
-    }
-}
-
-
 static char *commander_decrypt(const char *encrypted_command)
 {
     char *command;
@@ -1707,15 +1615,12 @@ static char *commander_decrypt(const char *encrypted_command)
     uint16_t err_count = 0, err_iter = 0;
     size_t json_object_len = 0;
 
-    if (memory_session_key_get_state() == MEM_SESSION_KEY_STATE_OFF) {
-        commander_set_session_key(encrypted_command);
-        memory_clear_passwords();
-    }
+    wallet_set_hidden(0);
 
     command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
                                   strlens(encrypted_command),
                                   &command_len,
-                                  memory_session_key_report());
+                                  memory_report_aeskey(PASSWORD_STAND));
 
     err_count = memory_report_access_err_count();
     err_iter = memory_report_access_err_count() + 1;
@@ -1738,6 +1643,22 @@ static char *commander_decrypt(const char *encrypted_command)
 
     if (!json_object_len || !strlens(command) || err) {
         if (strlens(command)) {
+            free(command);
+        }
+
+        // Check if hidden wallet is requested
+        command = aes_cbc_b64_decrypt((const unsigned char *)encrypted_command,
+                                      strlens(encrypted_command),
+                                      &command_len,
+                                      memory_report_aeskey(PASSWORD_HIDDEN));
+        if (strlens(command)) {
+            yajl_val json_node = yajl_tree_parse(command, NULL, 0);
+            if (json_node && YAJL_IS_OBJECT(json_node)) {
+                wallet_set_hidden(1);
+                yajl_tree_free(json_node);
+                return command;
+            }
+            yajl_tree_free(json_node);
             free(command);
         }
 
